@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCBJycsmduvYEL83R_U4JriQ"/>
+ <id>yt:channel:BJycsmduvYEL83R_U4JriQ</id>
+ <yt:channelId>BJycsmduvYEL83R_U4JriQ</yt:channelId>
+ <title>Marques Brownlee</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ"/>
+ <author>
+  <name>Marques Brownlee</name>
+  <uri>https://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ</uri>
+ </author>
+ <published>2008-03-21T15:25:54+00:00</published>
+ <entry>
+  <id>yt:video:rayrrXot17M</id>
+  <yt:videoId>rayrrXot17M</yt:videoId>
+  <yt:channelId>UCBJycsmduvYEL83R_U4JriQ</yt:channelId>
+  <title>Nothing Headphone 1 Pro: They Copied the Wrong Thing!</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=rayrrXot17M"/>
+  <author>
+   <name>Marques Brownlee</name>
+   <uri>https://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ</uri>
+  </author>
+  <published>2026-09-29T01:01:35+00:00</published>
+  <updated>2026-09-30T03:23:49+00:00</updated>
+  <media:group>
+   <media:title>Nothing Headphone 1 Pro: They Copied the Wrong Thing!</media:title>
+   <media:thumbnail url="https://i3.ytimg.com/vi/rayrrXot17M/hqdefault.jpg" width="480" height="360"/>
+   <media:description>A review &amp; some thoughts.</media:description>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:R6yNUnRXZ64</id>
+  <yt:videoId>R6yNUnRXZ64</yt:videoId>
+  <yt:channelId>UCBJycsmduvYEL83R_U4JriQ</yt:channelId>
+  <title>A Short</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/R6yNUnRXZ64"/>
+  <published>2026-09-27T18:00:00+00:00</published>
+ </entry>
+ <entry>
+  <id>yt:video:DkUuOr21v4s</id>
+  <yt:videoId>DkUuOr21v4s</yt:videoId>
+  <yt:channelId>UCBJycsmduvYEL83R_U4JriQ</yt:channelId>
+  <title>Xiaomi 18 Pro Max: They&apos;ve Done It Again!</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=DkUuOr21v4s"/>
+  <published>2026-09-24T22:26:18+00:00</published>
+ </entry>
+ <entry>
+  <id>yt:video:broken</id>
+  <title>An entry with no video id is skipped</title>
+  <published>2026-09-20T10:00:00+00:00</published>
+ </entry>
+</feed>

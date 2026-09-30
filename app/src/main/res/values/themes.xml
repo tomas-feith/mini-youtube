@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Only the launch theme lives here; everything after the first frame is Compose.
+        The background matches Theme.kt's Bg so there is no flash of a different colour
+        between the splash window and the first composition.
+    -->
+    <style name="Theme.MiniYouTube" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:statusBarColor">@color/launch_background</item>
+        <item name="android:navigationBarColor">@color/launch_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

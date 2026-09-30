@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (dataExtractionRules). Same payload for both transports: the database, and
+  nothing else. See backup_rules.xml for why.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="mini_youtube.db" />
+    </cloud-backup>
+
+    <device-transfer>
+        <include domain="database" path="mini_youtube.db" />
+    </device-transfer>
+</data-extraction-rules>

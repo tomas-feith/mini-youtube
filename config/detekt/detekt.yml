@@ -1,0 +1,72 @@
+# Project overrides on top of detekt's defaults (buildUponDefaultConfig = true).
+# Only deviations are listed; everything else keeps detekt's shipped setting.
+#
+# detekt 2 dropped `build.maxIssues`: the build now fails on any finding with severity
+# `error` rather than counting them, so the old `maxIssues: 0` has no equivalent and needs
+# no replacement - it was already saying "fail on anything".
+
+complexity:
+  LongParameterList:
+    # Compose composables legitimately take many parameters, most with defaults.
+    ignoreDefaultParameters: true
+    allowedFunctionParameters: 8
+    allowedConstructorParameters: 8
+  TooManyFunctions:
+    allowedFunctionsPerFile: 20
+    allowedFunctionsPerClass: 20
+    allowedFunctionsPerObject: 20
+    # A DAO is a list of queries; splitting it would be worse than leaving it long.
+    allowedFunctionsPerInterface: 24
+    ignorePrivate: true
+  LongMethod:
+    # Compose screen functions are declarative trees, not dense logic.
+    allowedLines: 120
+  CyclomaticComplexMethod:
+    allowedComplexity: 18
+
+style:
+  MagicNumber:
+    ignoreNumbers: ['-1', '0', '1', '2']
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreNamedArgument: true
+    # Layout code is full of one-off sizes, and test fixtures are full of relative times.
+    # Naming those hurts readability rather than helping it.
+    excludes: ['**/ui/**', '**/test/**', '**/androidTest/**']
+  MaxLineLength:
+    maxLineLength: 100
+    excludes: ['**/test/**']
+  ReturnCount:
+    max: 4
+  # UnusedPrivateMember was split in two in detekt 2.
+  UnusedPrivateFunction:
+    active: true
+  UnusedPrivateProperty:
+    active: true
+  ForbiddenComment:
+    # Flag leftover markers so they don't quietly ship.
+    comments:
+      - reason: 'Unresolved work should be tracked, not buried in a comment.'
+        value: 'TODO:'
+      - reason: 'Unresolved work should be tracked, not buried in a comment.'
+        value: 'FIXME:'
+
+naming:
+  FunctionNaming:
+    # Composables are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+  SwallowedException:
+    active: true
+
+coroutines:
+  # Off deliberately. The rule wants dispatchers injected so a test can substitute one.
+  # The network client already takes its dispatcher; the remaining sites are Android entry
+  # points (the worker) that build their own scope, and there is no DI container to inject
+  # through.
+  InjectDispatcher:
+    active: false
