@@ -11,6 +11,7 @@ import javax.xml.parsers.ParserConfigurationException
 
 private const val ATOM_NS = "http://www.w3.org/2005/Atom"
 private const val YT_NS = "http://www.youtube.com/xml/schemas/2015"
+private const val MEDIA_NS = "http://search.yahoo.com/mrss/"
 
 /**
  * Parses the Atom feed at `/feeds/videos.xml?channel_id=...`.
@@ -66,6 +67,14 @@ private fun parseEntry(entry: Element): FeedEntry? {
             .firstOrNull { it.getAttribute("rel") == "alternate" }
             ?.getAttribute("href")
             .orEmpty()
+    // Nested three deep (media:group > media:community > media:statistics), so looked up
+    // as a descendant rather than walked to.
+    val views =
+        entry
+            .getElementsByTagNameNS(MEDIA_NS, "statistics")
+            .let { if (it.length > 0) it.item(0) as? Element else null }
+            ?.getAttribute("views")
+            ?.toLongOrNull()
 
     return FeedEntry(
         videoId = videoId,
@@ -73,11 +82,12 @@ private fun parseEntry(entry: Element): FeedEntry? {
         title = title,
         publishedAt = published,
         isShort = link.contains("/shorts/"),
+        views = views,
     )
 }
 
 /** YouTube writes `+00:00` offsets, which `Instant.parse` accepts since Java 12 only. */
-private fun parseInstant(text: String): Instant? =
+internal fun parseInstant(text: String): Instant? =
     try {
         OffsetDateTime.parse(text).toInstant()
     } catch (

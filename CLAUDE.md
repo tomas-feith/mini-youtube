@@ -23,6 +23,17 @@ absent-tolerant `keystore.properties` signing block.
 - **A watched video is never deleted.** Its row is what stops the next check re-adding
   it while it is still among the feed's fifteen entries. `newArrivals` also drops anything
   published before `followedAt`, which is what makes "follow from now" work.
+- **`followedAt` is YouTube's clock** (the feed response's `Date` header), because it is
+  compared with publish times YouTube stamped. The phone clock is only the fallback.
+- **Premieres and scheduled streams** are in the feed from scheduling, with `views="0"`.
+  Only zero-view entries cost a watch-page fetch (~1.2 MB); `isUpcoming` is read from the
+  `videoDetails` object alone, cut out by brace matching, because the sidebar carries the
+  same field for other videos. A pending one is stored with `availableAt` set - known, so
+  not re-fetched, but out of the backlog - and `FeedRefresher.releaseDue` re-checks it
+  once the time comes, since premieres get postponed.
+- **Overflow backfill** reads `/channel/<id>/videos` (30 newest long-form uploads) when
+  `feedOverflowed` says the feed rolled past `channels.feedHighWater`. The walk stops at
+  the first known id, and each candidate costs a watch-page fetch for its exact date.
 - **Never `REPLACE` into `channels`.** SQLite's REPLACE is delete-then-insert, and the
   delete cascades to `videos`, silently forgetting what was watched. Inserts are IGNORE.
 - **TRUNCATE journal, not WAL**, so Auto Backup's copy of the single `.db` file is always

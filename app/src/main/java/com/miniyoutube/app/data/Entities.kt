@@ -20,12 +20,18 @@ data class ChannelEntity(
     val title: String,
     val avatarUrl: String?,
     /**
-     * When the user followed the channel. Uploads older than this never enter the backlog;
-     * see `newArrivals`.
+     * When the user followed the channel, by YouTube's clock (see `Feed.fetchedAt`).
+     * Uploads older than this never enter the backlog; see `newArrivals`.
      */
     val followedAt: Long,
     /** The last time the channel's feed was read successfully, or null if never. */
     val lastCheckedAt: Long?,
+    /**
+     * The newest publish time seen in the channel's feed, Shorts included. A later feed
+     * whose oldest entry is newer still has rolled past videos this app never saw; see
+     * `feedOverflowed`. Null until the first check after the upgrade that added it.
+     */
+    val feedHighWater: Long? = null,
 )
 
 /**
@@ -61,6 +67,13 @@ data class VideoEntity(
     val watchedAt: Long?,
     /** Where playback was left, so reopening a long video resumes rather than restarts. */
     @ColumnInfo(defaultValue = "0") val resumeAtSeconds: Int = 0,
+    /**
+     * For a premiere or stream found before it started: when it starts. Such a row is
+     * known - so the next check does not fetch its page again - but kept out of the backlog
+     * until a refresh after this time releases it, sets this back to null, and announces
+     * it. Null for everything already watchable.
+     */
+    val availableAt: Long? = null,
 )
 
 /** A video joined with the name of its channel, which is how every screen shows it. */

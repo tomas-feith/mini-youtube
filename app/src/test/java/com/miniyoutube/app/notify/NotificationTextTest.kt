@@ -1,7 +1,6 @@
 package com.miniyoutube.app.notify
 
 import com.miniyoutube.app.data.NewVideo
-import com.miniyoutube.app.data.VideoEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -9,8 +8,7 @@ import org.junit.Test
 class NotificationTextTest {
     @Test
     fun namesTheChannelAndTheVideo() {
-        val video =
-            NewVideo(VideoEntity("abcdefghijk", "UCx", "A new video", 0, 0, null), "Some Channel")
+        val video = NewVideo("abcdefghijk", "A new video", 0, "Some Channel")
         assertEquals(
             VideoNotificationText("Some Channel", "A new video"),
             videoNotificationText(video),

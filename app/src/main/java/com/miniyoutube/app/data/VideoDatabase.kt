@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ChannelEntity::class, VideoEntity::class],
@@ -15,12 +16,28 @@ abstract class VideoDatabase : RoomDatabase() {
     abstract fun videoDao(): VideoDao
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
 
         const val NAME = "mini_youtube.db"
 
         /**
-         * Schema migrations, oldest first. None yet.
+         * Adds `channels.feedHighWater` and `videos.availableAt`.
+         *
+         * Both nullable with no default, so existing rows arrive as "no mark yet" and
+         * "watchable now" - exactly what was true before the columns existed. The mark is
+         * set by the next check; until then overflow detection simply has nothing to
+         * compare against, which is the same state a newly followed channel starts in.
+         */
+        private val MIGRATION_1_2 =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE channels ADD COLUMN feedHighWater INTEGER")
+                    db.execSQL("ALTER TABLE videos ADD COLUMN availableAt INTEGER")
+                }
+            }
+
+        /**
+         * Schema migrations, oldest first.
          *
          * Destructive fallback is deliberately never enabled: the followed channels and
          * which videos have been watched exist nowhere but here.
@@ -30,7 +47,7 @@ abstract class VideoDatabase : RoomDatabase() {
          *  2. Add a `Migration(n, n + 1)` here with the SQL.
          *  3. `MigrationTest` fails until the committed schema JSONs and the SQL agree.
          */
-        val MIGRATIONS: List<Migration> = emptyList()
+        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2)
 
         @Volatile
         private var instance: VideoDatabase? = null

@@ -23,7 +23,9 @@ Or skip the pasting: in the YouTube app, open a channel or video, tap **Share**,
 **Follow in Mini YouTube**. The link arrives in the Channels screen and is followed straight away.
 
 Following starts **from now**. The channel's existing videos are not added - only uploads
-published after you follow it. Unfollowing removes the channel's videos from the backlog.
+published after you follow it. "Now" is YouTube's clock, read from its own response when
+you follow, so a phone clock that is off cannot make the app skip or include the wrong
+uploads. Unfollowing removes the channel's videos from the backlog.
 
 ## The backlog
 
@@ -72,12 +74,20 @@ quota, no scraping of the home page.
   follow filling the backlog with the channel's back catalogue.
 - **Anything already known** is dropped, watched or not.
 
-Two consequences of using the feed rather than the Data API:
+The feed has two blind spots, and the app covers both:
 
-- A channel that publishes more than fifteen videos between two checks loses the oldest
-  of them. With hourly checks that takes an unusually busy channel.
-- The feed cannot tell a scheduled premiere or live stream from an ordinary upload, so one
-  can appear in the backlog before it has started. It plays once it goes live.
+- **It holds only fifteen entries**, Shorts included, so a channel posting a burst - or a
+  phone that was off for a week - can push videos out before they are ever seen. Each
+  check remembers the newest publish time it saw; if the next feed is full and entirely
+  newer than that, something fell through, and the app reads the channel's Videos tab
+  (the latest thirty long-form uploads) to fill the gap. Streams are not on that tab, so
+  a stream lost this way stays lost.
+- **It lists premieres and scheduled streams as soon as they are scheduled.** An entry
+  with no views yet has its page checked; one that has not started is held back, out of
+  the backlog and unannounced, until the first check after its start time. It is checked
+  once more then, so a premiere that was pushed back waits for its new time. A premiere
+  scheduled before you followed the channel counts as older than the follow and is not
+  added.
 
 Resolving a `@handle` to a channel id reads the channel's page once, when you follow it.
 

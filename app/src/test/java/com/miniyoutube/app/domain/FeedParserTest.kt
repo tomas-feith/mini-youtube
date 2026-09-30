@@ -32,6 +32,13 @@ class FeedParserTest {
     }
 
     @Test
+    fun readsViewCountsWhereTheFeedGivesThem() {
+        val entries = parseFeed(sample).entries.associateBy { it.videoId }
+        assertEquals(3942740L, entries.getValue("rayrrXot17M").views)
+        assertEquals(null, entries.getValue("DkUuOr21v4s").views)
+    }
+
+    @Test
     fun marksShortsByTheirLink() {
         val entries = parseFeed(sample).entries.associateBy { it.videoId }
         assertTrue(entries.getValue("R6yNUnRXZ64").isShort)

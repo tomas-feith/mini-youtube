@@ -19,21 +19,32 @@ class Library(
 
     fun video(id: String): Flow<VideoWithChannel?> = dao.observeVideo(id)
 
-    /** @return false when the channel was already followed, which leaves it untouched. */
+    /**
+     * @param followedAt when following began, by YouTube's clock where known; the phone's
+     *   clock is only the fallback. See `Feed.fetchedAt`.
+     * @param highWater the newest publish time in the feed read while following, so the
+     *   first check can already tell whether the feed has rolled past anything.
+     * @return false when the channel was already followed, which leaves it untouched.
+     */
     suspend fun follow(
         channelId: String,
         title: String,
         avatarUrl: String?,
-    ): Boolean =
-        dao.insertChannel(
+        followedAt: Instant? = null,
+        highWater: Instant? = null,
+    ): Boolean {
+        val since = followedAt ?: clock()
+        return dao.insertChannel(
             ChannelEntity(
                 id = channelId,
                 title = title,
                 avatarUrl = avatarUrl,
-                followedAt = clock().toEpochMilli(),
+                followedAt = since.toEpochMilli(),
                 lastCheckedAt = null,
+                feedHighWater = (highWater ?: since).toEpochMilli(),
             ),
         ) != -1L
+    }
 
     /** Removes the channel and, through the cascade, every video it brought in. */
     suspend fun unfollow(channelId: String) = dao.deleteChannel(channelId)
@@ -63,5 +74,14 @@ class Library(
         channelId: String,
         title: String,
         checkedAt: Long,
-    ) = dao.markChecked(channelId, title, checkedAt)
+        highWater: Long?,
+    ) = dao.markChecked(channelId, title, checkedAt, highWater)
+
+    override suspend fun dueVideos(now: Long): List<VideoWithChannel> = dao.dueVideos(now)
+
+    override suspend fun setAvailableAt(
+        videoId: String,
+        availableAt: Long?,
+        publishedAt: Long,
+    ) = dao.setAvailableAt(videoId, availableAt, publishedAt)
 }

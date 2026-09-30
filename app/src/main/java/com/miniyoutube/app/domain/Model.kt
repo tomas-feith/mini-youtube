@@ -13,12 +13,37 @@ data class FeedEntry(
      * `/shorts/<id>` rather than `/watch?v=<id>`; there is no separate flag.
      */
     val isShort: Boolean,
+    /**
+     * The view count the feed reports, or null when it gives none. Zero is the cheap hint
+     * that an entry may be a scheduled premiere or stream that has not started - those sit
+     * in the feed from the moment they are scheduled - and is what decides whether the
+     * video's page is worth fetching to find out.
+     */
+    val views: Long? = null,
 )
 
 /** A parsed channel feed: the channel's current name and its most recent uploads. */
 data class Feed(
     val channelTitle: String?,
     val entries: List<FeedEntry>,
+    /**
+     * When YouTube served the feed, by YouTube's own clock (the response's `Date` header),
+     * or null if it sent none. Following uses this rather than the phone's clock, because
+     * it is compared against publish times that YouTube stamped.
+     */
+    val fetchedAt: Instant? = null,
+)
+
+/** What a video's watch page says about it. */
+data class WatchInfo(
+    val videoId: String,
+    val channelId: String?,
+    val title: String?,
+    val publishedAt: Instant?,
+    /** A premiere or stream that is scheduled and has not started yet. */
+    val upcoming: Boolean,
+    /** When a scheduled premiere or stream starts, or started. */
+    val startsAt: Instant?,
 )
 
 /** What resolving a link or handle produces: enough to follow the channel. */

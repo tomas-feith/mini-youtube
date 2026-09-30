@@ -10,6 +10,9 @@ import com.miniyoutube.app.data.FeedRefresher
 import com.miniyoutube.app.data.Follower
 import com.miniyoutube.app.data.Library
 import com.miniyoutube.app.data.VideoDatabase
+import com.miniyoutube.app.data.VideoSource
+import com.miniyoutube.app.domain.Feed
+import com.miniyoutube.app.domain.WatchInfo
 import com.miniyoutube.app.network.YouTubeClient
 import com.miniyoutube.app.notify.RefreshWorker
 import com.miniyoutube.app.notify.ensureChannel
@@ -36,10 +39,22 @@ class AppContainer(
     val library: Library by lazy { Library(VideoDatabase.get(appContext).videoDao()) }
 
     val refresher: FeedRefresher by lazy {
-        FeedRefresher(source = youtube::fetchFeed, store = library)
+        FeedRefresher(source = YouTubeSource(youtube), store = library)
     }
 
     val follower: Follower by lazy { Follower(youtube, library) }
+}
+
+/** The refresher's view of the network client. */
+private class YouTubeSource(
+    private val client: YouTubeClient,
+) : VideoSource {
+    override suspend fun feed(channelId: String): Feed = client.fetchFeed(channelId)
+
+    override suspend fun watchInfo(videoId: String): WatchInfo = client.fetchWatchInfo(videoId)
+
+    override suspend fun channelVideoIds(channelId: String): List<String> =
+        client.fetchChannelVideoIds(channelId)
 }
 
 class MiniYouTubeApplication :

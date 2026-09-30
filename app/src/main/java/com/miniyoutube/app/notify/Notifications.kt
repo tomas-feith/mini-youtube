@@ -29,7 +29,7 @@ data class VideoNotificationText(
 )
 
 fun videoNotificationText(video: NewVideo): VideoNotificationText =
-    VideoNotificationText(title = video.channelTitle, body = video.video.title)
+    VideoNotificationText(title = video.channelTitle, body = video.title)
 
 /** The summary line shown when the group is collapsed. */
 fun summaryText(count: Int): String = if (count == 1) "1 new video" else "$count new videos"
@@ -107,13 +107,13 @@ fun notifyNewVideos(
                 .setContentTitle(text.title)
                 .setContentText(text.body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text.body))
-                .setWhen(video.video.publishedAt)
+                .setWhen(video.publishedAt)
                 .setShowWhen(true)
                 .setGroup(GROUP_KEY)
                 .setAutoCancel(true)
-                .setContentIntent(openVideoIntent(context, video.video.id))
+                .setContentIntent(openVideoIntent(context, video.videoId))
                 .build()
-        manager.notify(notificationId(video.video.id), notification)
+        manager.notify(notificationId(video.videoId), notification)
     }
 
     val showing =

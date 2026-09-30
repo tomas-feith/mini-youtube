@@ -114,9 +114,48 @@ class VideoDaoTest {
             library.saveResumePoint("v1", 125)
             assertEquals(125, library.video("v1").first()?.resumeAtSeconds)
 
-            library.markChecked("UCa", "A renamed", 42)
+            library.markChecked("UCa", "A renamed", 42, 99)
             val channel = library.channels().single()
             assertEquals("A renamed", channel.title)
             assertEquals(42L, channel.lastCheckedAt)
+            assertEquals(99L, channel.feedHighWater)
+        }
+
+    @Test
+    fun followingRecordsYouTubesClockAndTheFeedsMark() =
+        runTest {
+            val server = Instant.parse("2026-09-30T10:00:00Z")
+            library.follow(
+                "UCa",
+                "A",
+                null,
+                followedAt = server,
+                highWater = server.minusSeconds(60),
+            )
+            val channel = library.channels().single()
+            assertEquals(server.toEpochMilli(), channel.followedAt)
+            assertEquals(server.minusSeconds(60).toEpochMilli(), channel.feedHighWater)
+        }
+
+    @Test
+    fun aPendingPremiereStaysOutOfTheBacklogUntilReleased() =
+        runTest {
+            library.follow("UCa", "A", null)
+            val startsAt = now.plusSeconds(3600).toEpochMilli()
+            library.addVideos(
+                listOf(video("p1").copy(availableAt = startsAt, publishedAt = startsAt)),
+            )
+
+            assertTrue(library.backlog.first().isEmpty())
+            assertTrue(library.dueVideos(now.toEpochMilli()).isEmpty())
+            assertEquals(setOf("p1"), library.knownVideoIds("UCa"))
+
+            val due = library.dueVideos(startsAt)
+            assertEquals(listOf("p1"), due.map { it.id })
+            assertEquals("A", due.single().channelTitle)
+
+            library.setAvailableAt("p1", null, startsAt)
+            assertEquals(listOf("p1"), library.backlog.first().map { it.id })
+            assertTrue(library.dueVideos(startsAt).isEmpty())
         }
 }

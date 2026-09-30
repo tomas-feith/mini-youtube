@@ -37,7 +37,18 @@ class Follower(
             // the page did not.
             val feed = client.fetchFeed(info.id)
             val title = info.title ?: feed.channelTitle ?: info.id
-            if (library.follow(info.id, title, info.avatarUrl)) {
+            val followed =
+                library.follow(
+                    channelId = info.id,
+                    title = title,
+                    avatarUrl = info.avatarUrl,
+                    // YouTube's clock, not the phone's: this is compared against publish
+                    // times YouTube stamped, and a phone clock running ahead would
+                    // otherwise silently drop every upload made in the difference.
+                    followedAt = feed.fetchedAt,
+                    highWater = feed.entries.maxOfOrNull { it.publishedAt },
+                )
+            if (followed) {
                 FollowResult.Followed(title)
             } else {
                 FollowResult.AlreadyFollowing(title)

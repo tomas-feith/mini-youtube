@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 class YouTubeClientTest {
     private val server = MockWebServer()
@@ -42,11 +43,15 @@ class YouTubeClientTest {
                 requireNotNull(
                     javaClass.classLoader?.getResource("feed-sample.xml"),
                 ).readText()
-            server.enqueue(MockResponse().setBody(xml))
+            server.enqueue(
+                MockResponse().setBody(xml).setHeader("Date", "Wed, 30 Sep 2026 10:15:00 GMT"),
+            )
 
             val feed = client().fetchFeed(id)
 
             assertEquals(3, feed.entries.size)
+            // YouTube's clock, from the response, for following.
+            assertEquals(Instant.parse("2026-09-30T10:15:00Z"), feed.fetchedAt)
             val request = server.takeRequest()
             assertEquals("/feeds/videos.xml?channel_id=$id", request.path)
             assertEquals("SOCS=CAI", request.getHeader("Cookie"))
@@ -131,6 +136,46 @@ class YouTubeClientTest {
                 assertEquals(503, e.code)
                 assertEquals("YouTube answered 503", e.message)
             }
+        }
+
+    @Test
+    fun readsAWatchPage() =
+        runTest {
+            server.enqueue(
+                MockResponse().setBody(
+                    """{"videoDetails":{"videoId":"7ZiUbT1-djA",""" +
+                        """"channelId":"$id","isUpcoming":true},""" +
+                        """"microformat":{"startTimestamp":"2026-10-01T13:20:00+00:00"}}""",
+                ),
+            )
+            val info = client().fetchWatchInfo("7ZiUbT1-djA")
+            assertTrue(info.upcoming)
+            assertEquals(Instant.parse("2026-10-01T13:20:00Z"), info.startsAt)
+            assertEquals("/watch?v=7ZiUbT1-djA", server.takeRequest().path)
+        }
+
+    @Test
+    fun aWatchPageThatIsNotAboutTheVideoIsAnError() =
+        runTest {
+            server.enqueue(MockResponse().setBody("<html>consent</html>"))
+            try {
+                client().fetchWatchInfo("7ZiUbT1-djA")
+                fail("expected YouTubeException")
+            } catch (e: YouTubeException) {
+                assertTrue(e.message!!.contains("not readable"))
+            }
+        }
+
+    @Test
+    fun readsTheVideosTab() =
+        runTest {
+            server.enqueue(
+                MockResponse().setBody(
+                    """{"contentId":"rayrrXot17M"},{"contentId":"DkUuOr21v4s"}""",
+                ),
+            )
+            assertEquals(listOf("rayrrXot17M", "DkUuOr21v4s"), client().fetchChannelVideoIds(id))
+            assertEquals("/channel/$id/videos", server.takeRequest().path)
         }
 
     @Test

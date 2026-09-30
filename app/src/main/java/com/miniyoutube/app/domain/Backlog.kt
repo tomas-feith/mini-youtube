@@ -30,6 +30,46 @@ fun newArrivals(
         .distinctBy { it.videoId }
         .toList()
 
+/** How many entries YouTube puts in a channel feed. */
+const val FEED_WINDOW = 15
+
+/**
+ * Whether the feed has rolled past uploads this app never saw.
+ *
+ * The feed holds only the latest [FEED_WINDOW] entries, Shorts included. [highWater] is
+ * the newest publish time the previous check saw. If the feed is full and even its oldest
+ * entry is newer than that, then everything between the two was published and pushed out
+ * again between checks - a phone that was off for a week, or a channel posting a burst of
+ * Shorts. Both times are YouTube's, so the phone's clock plays no part.
+ *
+ * A feed that is not full cannot have overflowed; nor can one with no mark yet, which is
+ * a channel whose first check this is.
+ */
+fun feedOverflowed(
+    entries: List<FeedEntry>,
+    highWater: Instant?,
+): Boolean {
+    if (highWater == null || entries.size < FEED_WINDOW) return false
+    return entries.minOf { it.publishedAt }.isAfter(highWater)
+}
+
+/**
+ * The videos on a channel's uploads list that the feed rolled past: those not in the
+ * current feed, up to the first one already known.
+ *
+ * [uploads] is newest first, so the videos the feed still covers come first and are
+ * skipped, the gap follows, and the first known video marks where the previous check
+ * left off - everything after it was seen then.
+ */
+fun gapCandidates(
+    uploads: List<String>,
+    inFeed: Set<String>,
+    known: Set<String>,
+): List<String> =
+    uploads
+        .filterNot { it in inFeed }
+        .takeWhile { it !in known }
+
 private const val SECONDS_PER_MINUTE = 60L
 private const val MINUTES_PER_HOUR = 60L
 private const val HOURS_PER_DAY = 24L

@@ -25,11 +25,15 @@ interface VideoDao {
     suspend fun insertChannel(channel: ChannelEntity): Long
 
     /** Records a successful check, and picks up a rename. Touches nothing the user owns. */
-    @Query("UPDATE channels SET title = :title, lastCheckedAt = :checkedAt WHERE id = :id")
+    @Query(
+        "UPDATE channels SET title = :title, lastCheckedAt = :checkedAt, " +
+            "feedHighWater = :highWater WHERE id = :id",
+    )
     suspend fun markChecked(
         id: String,
         title: String,
         checkedAt: Long,
+        highWater: Long?,
     )
 
     @Query("DELETE FROM channels WHERE id = :id")
@@ -39,7 +43,7 @@ interface VideoDao {
         "SELECT v.id, v.channelId, c.title AS channelTitle, v.title, v.publishedAt, " +
             "v.watchedAt, v.resumeAtSeconds " +
             "FROM videos v JOIN channels c ON c.id = v.channelId " +
-            "WHERE v.watchedAt IS NULL ORDER BY v.publishedAt DESC",
+            "WHERE v.watchedAt IS NULL AND v.availableAt IS NULL ORDER BY v.publishedAt DESC",
     )
     fun observeBacklog(): Flow<List<VideoWithChannel>>
 
@@ -49,6 +53,25 @@ interface VideoDao {
             "FROM videos v JOIN channels c ON c.id = v.channelId WHERE v.id = :id",
     )
     fun observeVideo(id: String): Flow<VideoWithChannel?>
+
+    /** Premieres and streams whose start has come, waiting to be released. */
+    @Query(
+        "SELECT v.id, v.channelId, c.title AS channelTitle, v.title, v.publishedAt, " +
+            "v.watchedAt, v.resumeAtSeconds " +
+            "FROM videos v JOIN channels c ON c.id = v.channelId " +
+            "WHERE v.availableAt IS NOT NULL AND v.availableAt <= :now",
+    )
+    suspend fun dueVideos(now: Long): List<VideoWithChannel>
+
+    /** Null releases the video into the backlog; a time postpones it to then. */
+    @Query(
+        "UPDATE videos SET availableAt = :availableAt, publishedAt = :publishedAt WHERE id = :id",
+    )
+    suspend fun setAvailableAt(
+        id: String,
+        availableAt: Long?,
+        publishedAt: Long,
+    )
 
     @Query("SELECT id FROM videos WHERE channelId = :channelId")
     suspend fun videoIds(channelId: String): List<String>

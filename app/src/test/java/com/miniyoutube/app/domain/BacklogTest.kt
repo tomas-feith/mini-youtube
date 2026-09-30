@@ -52,6 +52,36 @@ class BacklogTest {
     }
 
     @Test
+    fun overflowIsAFullFeedEntirelyNewerThanTheMark() {
+        val mark = followedAt
+        val full = (1..FEED_WINDOW).map { entry("v$it", mark.plusSeconds(it.toLong())) }
+        assertEquals(true, feedOverflowed(full, mark))
+
+        // The oldest entry is the mark itself: continuous with the last check.
+        val touching = full.dropLast(1) + entry("edge", mark)
+        assertEquals(false, feedOverflowed(touching, mark))
+
+        // Not full: nothing can have been pushed out.
+        assertEquals(false, feedOverflowed(full.drop(1), mark))
+
+        // No mark yet: nothing to compare against.
+        assertEquals(false, feedOverflowed(full, null))
+    }
+
+    @Test
+    fun gapCandidatesSkipTheFeedAndStopAtTheFirstKnownVideo() {
+        val uploads = listOf("f1", "gap1", "f2", "gap2", "seen", "older")
+        assertEquals(
+            listOf("gap1", "gap2"),
+            gapCandidates(uploads, inFeed = setOf("f1", "f2"), known = setOf("seen")),
+        )
+        assertEquals(
+            emptyList<String>(),
+            gapCandidates(listOf("seen", "x"), emptySet(), setOf("seen")),
+        )
+    }
+
+    @Test
     fun relativeAges() {
         val now = Instant.parse("2026-09-30T12:00:00Z")
         assertEquals("just now", relativeAge(now.minusSeconds(30), now))

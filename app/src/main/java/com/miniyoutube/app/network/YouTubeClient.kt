@@ -3,9 +3,12 @@ package com.miniyoutube.app.network
 import com.miniyoutube.app.domain.ChannelInfo
 import com.miniyoutube.app.domain.ChannelRef
 import com.miniyoutube.app.domain.Feed
+import com.miniyoutube.app.domain.WatchInfo
 import com.miniyoutube.app.domain.parseChannelPage
+import com.miniyoutube.app.domain.parseChannelVideoIds
 import com.miniyoutube.app.domain.parseFeed
 import com.miniyoutube.app.domain.parseOEmbedAuthorPath
+import com.miniyoutube.app.domain.parseWatchPage
 import com.miniyoutube.app.domain.watchUrl
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +18,7 @@ import okhttp3.Request
 import org.xml.sax.SAXException
 import java.io.IOException
 import java.net.URLEncoder
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 /** A request that reached YouTube and was refused, or answered with something unusable. */
@@ -44,16 +48,34 @@ class YouTubeClient(
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
     suspend fun fetchFeed(channelId: String): Feed {
-        val body = get("$baseUrl/feeds/videos.xml?channel_id=$channelId")
-        return try {
-            parseFeed(body)
-        } catch (e: SAXException) {
-            throw YouTubeException(
-                "The feed for $channelId was not readable: ${e.message}",
-                cause = e,
-            )
-        }
+        val response = get("$baseUrl/feeds/videos.xml?channel_id=$channelId")
+        val feed =
+            try {
+                parseFeed(response.body)
+            } catch (e: SAXException) {
+                throw YouTubeException(
+                    "The feed for $channelId was not readable: ${e.message}",
+                    cause = e,
+                )
+            }
+        return feed.copy(fetchedAt = response.serverTime)
     }
+
+    /**
+     * What the watch page says about a video: whether it is a premiere or stream that has
+     * not started, and its exact publish time.
+     *
+     * @throws YouTubeException when the page does not describe the video.
+     */
+    suspend fun fetchWatchInfo(videoId: String): WatchInfo {
+        val html = get("$baseUrl/watch?v=$videoId").body
+        return parseWatchPage(videoId, html)
+            ?: throw YouTubeException("The page for $videoId was not readable")
+    }
+
+    /** The channel's latest long-form uploads, newest first, from its `/videos` tab. */
+    suspend fun fetchChannelVideoIds(channelId: String): List<String> =
+        parseChannelVideoIds(get("$baseUrl/channel/$channelId/videos").body)
 
     /**
      * Turns what the user entered into a channel id, name and avatar.
@@ -78,7 +100,7 @@ class YouTubeClient(
                 val url = URLEncoder.encode(watchUrl(ref.videoId), "UTF-8")
                 val json =
                     try {
-                        get("$baseUrl/oembed?url=$url&format=json")
+                        get("$baseUrl/oembed?url=$url&format=json").body
                     } catch (e: YouTubeException) {
                         // oEmbed answers 401/403 for a private video and 400/404 for one
                         // that does not exist. Anything else is YouTube having a bad moment,
@@ -105,7 +127,7 @@ class YouTubeClient(
     private suspend fun runCatchingPage(path: String): ChannelInfo? {
         val html =
             try {
-                get("$baseUrl$path")
+                get("$baseUrl$path").body
             } catch (e: YouTubeException) {
                 if (e.code == HTTP_NOT_FOUND) {
                     throw YouTubeException("No channel at $path", e.code, e)
@@ -115,7 +137,13 @@ class YouTubeClient(
         return parseChannelPage(html)
     }
 
-    private suspend fun get(url: String): String =
+    private class Fetched(
+        val body: String,
+        /** The response's `Date` header: YouTube's clock, not the phone's. */
+        val serverTime: Instant?,
+    )
+
+    private suspend fun get(url: String): Fetched =
         withContext(io) {
             val request =
                 Request
@@ -132,7 +160,8 @@ class YouTubeClient(
                 if (!response.isSuccessful) {
                     throw YouTubeException("YouTube answered ${response.code}", response.code)
                 }
-                response.body?.string() ?: throw YouTubeException("Empty response")
+                val body = response.body?.string() ?: throw YouTubeException("Empty response")
+                Fetched(body, response.headers.getDate("Date")?.toInstant())
             }
         }
 
