@@ -5,7 +5,7 @@ import com.miniyoutube.app.domain.ChannelRef
 import com.miniyoutube.app.domain.Feed
 import com.miniyoutube.app.domain.WatchInfo
 import com.miniyoutube.app.domain.parseChannelPage
-import com.miniyoutube.app.domain.parseChannelVideoIds
+import com.miniyoutube.app.domain.parseChannelTabIds
 import com.miniyoutube.app.domain.parseFeed
 import com.miniyoutube.app.domain.parseOEmbedAuthorPath
 import com.miniyoutube.app.domain.parseWatchPage
@@ -80,8 +80,12 @@ class YouTubeClient(
     /** [fetchChannelVideoIds], with the time YouTube answered, for following without a feed. */
     suspend fun fetchUploads(channelId: String): Uploads {
         val response = get("$baseUrl/channel/$channelId/videos")
-        return Uploads(parseChannelVideoIds(response.body), response.serverTime)
+        return Uploads(parseChannelTabIds(response.body, "videos"), response.serverTime)
     }
+
+    /** The channel's latest streams, newest first; none for a channel that has not streamed. */
+    suspend fun fetchChannelStreamIds(channelId: String): List<String> =
+        parseChannelTabIds(get("$baseUrl/channel/$channelId/streams").body, "streams")
 
     class Uploads(
         val videoIds: List<String>,

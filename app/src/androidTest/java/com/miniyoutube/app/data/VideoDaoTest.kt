@@ -149,6 +149,7 @@ class VideoDaoTest {
             assertTrue(library.backlog.first().isEmpty())
             assertTrue(library.dueVideos(now.toEpochMilli()).isEmpty())
             assertEquals(setOf("p1"), library.knownVideoIds("UCa"))
+            assertEquals(setOf("p1"), library.pendingVideoIds("UCa"))
 
             val due = library.dueVideos(startsAt)
             assertEquals(listOf("p1"), due.map { it.id })
@@ -156,6 +157,7 @@ class VideoDaoTest {
 
             library.setAvailableAt("p1", null, startsAt)
             assertEquals(listOf("p1"), library.backlog.first().map { it.id })
+            assertTrue(library.pendingVideoIds("UCa").isEmpty())
             assertTrue(library.dueVideos(startsAt).isEmpty())
         }
 }

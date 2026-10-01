@@ -27,6 +27,9 @@ interface VideoSource {
     suspend fun watchInfo(videoId: String): WatchInfo
 
     suspend fun channelVideoIds(channelId: String): List<String>
+
+    /** The channel's `/streams` tab: past and scheduled streams, newest first. */
+    suspend fun channelStreamIds(channelId: String): List<String>
 }
 
 /** The slice of storage a refresh needs, so it can be tested without Room. */
@@ -34,6 +37,9 @@ interface RefreshStore {
     suspend fun channels(): List<ChannelEntity>
 
     suspend fun knownVideoIds(channelId: String): Set<String>
+
+    /** Known premieres and streams that have not started, which a tab lists at its top. */
+    suspend fun pendingVideoIds(channelId: String): Set<String>
 
     /** Inserts what is not there yet, and returns only the rows that were inserted. */
     suspend fun addVideos(videos: List<VideoEntity>): List<VideoEntity>
@@ -84,8 +90,8 @@ data class RefreshOutcome(
  * - **The feed's fifteen-entry window.** When it has rolled past videos between two
  *   checks (see `feedOverflowed`), the channel's `/videos` tab is read to fill the gap.
  * - **The feed being down.** YouTube's feed endpoint has spells of answering 404 for
- *   every channel. When it refuses, the channel is checked from its `/videos` tab
- *   instead (see [checkFromVideosTab]).
+ *   every channel. When it refuses, the channel is checked from its `/videos` and
+ *   `/streams` tabs instead (see [checkFromTabs]).
  *
  * One channel failing - a network blip, a deleted channel - costs that channel this round
  * and nothing else. Calls are serialized with a mutex: the in-app refresh and the
@@ -98,7 +104,12 @@ class FeedRefresher(
 ) {
     private val mutex = Mutex()
 
-    suspend fun refresh(): RefreshOutcome =
+    /**
+     * @param fallBack whether a channel whose feed is refused may be checked from its tabs
+     *   instead. That costs two listings of about a megabyte each, so the background
+     *   worker declines it on a metered network.
+     */
+    suspend fun refresh(fallBack: Boolean = true): RefreshOutcome =
         mutex.withLock {
             val released = releaseDue()
             val channels = store.channels()
@@ -106,8 +117,9 @@ class FeedRefresher(
             val results =
                 coroutineScope {
                     channels
-                        .map { channel -> async { permits.withPermit { refreshOne(channel) } } }
-                        .awaitAll()
+                        .map { channel ->
+                            async { permits.withPermit { refreshOne(channel, fallBack) } }
+                        }.awaitAll()
                 }
             val checked = results.filterIsInstance<ChannelResult.Checked>()
             RefreshOutcome(
@@ -174,18 +186,22 @@ class FeedRefresher(
      * feed was in flight makes the insert fail its foreign key, and that must cost this
      * channel's round, not crash the screen that asked for a refresh.
      */
-    private suspend fun refreshOne(channel: ChannelEntity): ChannelResult =
+    private suspend fun refreshOne(
+        channel: ChannelEntity,
+        fallBack: Boolean,
+    ): ChannelResult =
         try {
             val feed =
                 try {
                     source.feed(channel.id)
                 } catch (e: YouTubeException) {
                     // YouTube answered, so the site is up and only the feed is not.
-                    Log.w(TAG, "Feed for ${channel.id} refused; reading its videos tab", e)
+                    if (!fallBack) throw e
+                    Log.w(TAG, "Feed for ${channel.id} refused; reading its tabs", e)
                     null
                 }
             ChannelResult.Checked(
-                if (feed == null) checkFromVideosTab(channel) else checkFeed(channel, feed),
+                if (feed == null) checkFromTabs(channel) else checkFeed(channel, feed),
             )
         } catch (e: CancellationException) {
             throw e
@@ -234,27 +250,47 @@ class FeedRefresher(
     }
 
     /**
-     * Checks a channel without its feed, from the `/videos` tab: the newest uploads not
-     * yet known, each dated by its watch page.
+     * Checks a channel without its feed, from its `/videos` and `/streams` tabs: the
+     * newest of each not yet known, dated by their watch pages. Shorts are on neither.
      *
-     * The walk stops at the first known video, at the first from before the follow, and at
-     * a page it cannot read - left unstored, that video is simply tried again next time.
-     * So a channel with nothing new costs one listing and at most one watch page. Shorts
-     * are not on that tab, which suits; streams are not either, and wait for the feed.
+     * Each tab's walk stops at its first known video and at the first from before the
+     * follow, so a channel with nothing new costs two listings and a page or two. Known
+     * premieres and streams that have not started are skipped rather than stopped at: a
+     * tab lists them first, above uploads that may be new. A video not found this time -
+     * an unreadable page - is still above the first known one next time, and is tried
+     * again. One tab failing to load costs only that tab.
      *
      * The feed's high-water mark is left alone: nothing here says what the feed holds.
      */
-    private suspend fun checkFromVideosTab(channel: ChannelEntity): List<NewVideo> {
+    private suspend fun checkFromTabs(channel: ChannelEntity): List<NewVideo> {
         val now = clock()
-        val candidates =
-            gapCandidates(
-                source.channelVideoIds(channel.id),
-                emptySet(),
-                store.knownVideoIds(channel.id),
-            ).take(MAX_BACKFILL_LOOKUPS)
-        val found = walk(channel, candidates, now, stopAtUnreadable = true)
-        return save(channel, channel.title, found, now, channel.feedHighWater)
+        val known = store.knownVideoIds(channel.id)
+        val pending = store.pendingVideoIds(channel.id)
+        val videos = readTab(channel.id) { source.channelVideoIds(it) }
+        val streams = readTab(channel.id) { source.channelStreamIds(it) }
+        if (videos.isFailure && streams.isFailure) videos.getOrThrow()
+        val found =
+            listOf(videos, streams).flatMap { tab ->
+                val ids = tab.getOrNull().orEmpty()
+                walk(channel, gapCandidates(ids, pending, known).take(MAX_BACKFILL_LOOKUPS), now)
+            }
+        return save(channel, channel.title, found.distinctBy { it.id }, now, channel.feedHighWater)
     }
+
+    private suspend fun readTab(
+        channelId: String,
+        read: suspend (String) -> List<String>,
+    ): Result<List<String>> =
+        try {
+            Result.success(read(channelId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            Log.w(TAG, "Reading a tab of $channelId failed", e)
+            Result.failure(e)
+        }
 
     /** Stores what a check found and returns the rows that are new and watchable now. */
     private suspend fun save(
@@ -311,7 +347,8 @@ class FeedRefresher(
      * candidate costs a watch-page fetch for its exact publish time.
      *
      * Streams are not on that tab and so are not backfilled; Shorts are not either, which
-     * is what is wanted.
+     * is what is wanted. A stream is rarely lost this way: one channel would have to post
+     * fifteen things between two checks.
      */
     private suspend fun backfill(
         channel: ChannelEntity,
@@ -330,25 +367,29 @@ class FeedRefresher(
                 Log.w(TAG, "Backfilling ${channel.id} failed", e)
                 return emptyList()
             }
-        val candidates =
-            gapCandidates(ids, feed.entries.map { it.videoId }.toSet(), known)
-                .take(MAX_BACKFILL_LOOKUPS)
-        // Unlike the feed fallback, a gap is filled once: the next check's mark is past it.
-        return walk(channel, candidates, now, stopAtUnreadable = false)
+        val skip = feed.entries.map { it.videoId }.toSet() + store.pendingVideoIds(channel.id)
+        return walk(channel, gapCandidates(ids, skip, known).take(MAX_BACKFILL_LOOKUPS), now)
     }
 
-    /** Dates [candidates], newest first, by their watch pages, and turns them into rows. */
+    /**
+     * Dates [candidates], newest first, by their watch pages, and turns them into rows.
+     *
+     * A page that cannot be read - region-blocked, say - is skipped rather than ending the
+     * walk, so one bad video does not hide the ones behind it. Several in a row mean watch
+     * pages are failing altogether, and the rest would only fail too.
+     */
     private suspend fun walk(
         channel: ChannelEntity,
         candidates: List<String>,
         now: Instant,
-        stopAtUnreadable: Boolean,
     ): List<VideoEntity> {
         val followedAt = Instant.ofEpochMilli(channel.followedAt)
         val found = mutableListOf<VideoEntity>()
+        var unreadableInARow = 0
         for (id in candidates) {
             val info = inspect(id)
-            if (endsWalk(info, followedAt, stopAtUnreadable)) break
+            unreadableInARow = if (info == null) unreadableInARow + 1 else 0
+            if (unreadableInARow == MAX_UNREADABLE_IN_A_ROW || endsWalk(info, followedAt)) break
             pageRow(id, info, channel.id, now)?.let { found += it }
         }
         return found
@@ -362,13 +403,7 @@ class FeedRefresher(
     private fun endsWalk(
         info: WatchInfo?,
         followedAt: Instant,
-        stopAtUnreadable: Boolean,
-    ): Boolean =
-        if (info == null) {
-            stopAtUnreadable
-        } else {
-            !info.upcoming && info.publishedAt?.isBefore(followedAt) == true
-        }
+    ): Boolean = info != null && !info.upcoming && info.publishedAt?.isBefore(followedAt) == true
 
     /**
      * The row a video read from its page becomes, or null to skip it: a page that could
@@ -415,6 +450,9 @@ class FeedRefresher(
 
         /** Watch pages fetched per gap at most; each is around a megabyte. */
         const val MAX_BACKFILL_LOOKUPS = 15
+
+        /** Unreadable watch pages in a row after which a walk gives up. */
+        const val MAX_UNREADABLE_IN_A_ROW = 2
 
         /** How soon to look again at a stream still waiting past its start time. */
         val LATE_RECHECK: Duration = Duration.ofMinutes(30)

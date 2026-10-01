@@ -64,6 +64,9 @@ class Library(
     override suspend fun knownVideoIds(channelId: String): Set<String> =
         dao.videoIds(channelId).toSet()
 
+    override suspend fun pendingVideoIds(channelId: String): Set<String> =
+        dao.pendingVideoIds(channelId).toSet()
+
     override suspend fun addVideos(videos: List<VideoEntity>): List<VideoEntity> {
         if (videos.isEmpty()) return emptyList()
         val rowIds = dao.insertVideos(videos)

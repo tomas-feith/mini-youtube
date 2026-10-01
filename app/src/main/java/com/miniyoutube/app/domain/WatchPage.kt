@@ -67,6 +67,44 @@ fun parseChannelVideoIds(html: String): List<String> =
         .toList()
 
 /**
+ * The ids on the channel tab [tab] ("videos", "streams"), or none if YouTube served
+ * another tab in its place.
+ *
+ * A channel without streams answers `/streams` with its Home or Videos tab - a mix of
+ * uploads, Shorts shelves and other channels' videos, under a 200. The selected tab's
+ * own link names what was really served, in any interface language.
+ */
+fun parseChannelTabIds(
+    html: String,
+    tab: String,
+): List<String> = if (selectedChannelTab(html) == tab) parseChannelVideoIds(html) else emptyList()
+
+/** The last path segment of the selected tab's link: "videos", "streams", "featured". */
+internal fun selectedChannelTab(html: String): String? =
+    SELECTED
+        .findAll(html)
+        .firstNotNullOfOrNull { selected ->
+            val start = html.lastIndexOf(TAB_RENDERER, selected.range.first)
+            if (start < 0 ||
+                selected.range.first - start > MAX_TAB_HEADER
+            ) {
+                return@firstNotNullOfOrNull null
+            }
+            TAB_URL
+                .find(html.substring(start, selected.range.first))
+                ?.groupValues
+                ?.get(1)
+                ?.substringAfterLast('/')
+        }
+
+private val SELECTED = Regex(""""selected":true""")
+private const val TAB_RENDERER = "\"tabRenderer\":{"
+private val TAB_URL = Regex(""""url":"([^"]+)"""")
+
+/** A tab's endpoint and title come before `selected`; much further is something else. */
+private const val MAX_TAB_HEADER = 2_000
+
+/**
  * The JSON object that begins with [prefix], which must end in its opening `{`, cut out
  * by matching braces. Strings are skipped over, escapes included, so a brace inside a
  * title cannot end the object early.

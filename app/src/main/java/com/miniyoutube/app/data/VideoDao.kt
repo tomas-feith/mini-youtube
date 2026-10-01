@@ -76,6 +76,9 @@ interface VideoDao {
     @Query("SELECT id FROM videos WHERE channelId = :channelId")
     suspend fun videoIds(channelId: String): List<String>
 
+    @Query("SELECT id FROM videos WHERE channelId = :channelId AND availableAt IS NOT NULL")
+    suspend fun pendingVideoIds(channelId: String): List<String>
+
     /**
      * IGNORE so that two checks racing - the in-app refresh and the background worker -
      * cannot both claim a video. Only the one whose insert landed gets a row id back, and

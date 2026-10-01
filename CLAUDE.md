@@ -36,9 +36,15 @@ absent-tolerant `keystore.properties` signing block.
   the first known id, and each candidate costs a watch-page fetch for its exact date.
 - **The feed endpoint goes down for every channel at once** (404s, e.g. 2026-10-01, while
   `/channel/<id>/videos` and oEmbed kept working). A `YouTubeException` from the feed -
-  YouTube answered - makes `FeedRefresher` check from the videos tab instead, and
-  `Follower` take `followedAt` from that tab's `Date` header. A plain `IOException` - no
-  answer - does not fall back, since the tab would fail the same way.
+  YouTube answered - makes `FeedRefresher` check from the `/videos` and `/streams` tabs
+  instead (the worker skips this on metered networks), and `Follower` take `followedAt`
+  from the videos tab's `Date` header. A plain `IOException` - no answer - does not fall
+  back, since the tabs would fail the same way.
+- **A missing channel tab is served as another one, with a 200.** `/streams` on a channel
+  that never streamed returns Home (`featured`) or Videos. `parseChannelTabIds` checks the
+  selected tab's own link before trusting the ids.
+- **Battery Saver blocks a cold-started app's network for up to ~10 s.**
+  `getActiveNetwork()` is null meanwhile; `BacklogViewModel` waits on it before refreshing.
 - **Never `REPLACE` into `channels`.** SQLite's REPLACE is delete-then-insert, and the
   delete cascades to `videos`, silently forgetting what was watched. Inserts are IGNORE.
 - **TRUNCATE journal, not WAL**, so Auto Backup's copy of the single `.db` file is always

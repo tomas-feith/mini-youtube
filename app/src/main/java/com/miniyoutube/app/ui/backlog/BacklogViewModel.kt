@@ -1,6 +1,7 @@
 package com.miniyoutube.app.ui.backlog
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -39,6 +40,8 @@ class BacklogViewModel(
     private val refresher: FeedRefresher,
     private val appContext: Context,
     private val clock: () -> Instant = Instant::now,
+    /** Whether Android currently lets this app use a network. */
+    private val networkReady: () -> Boolean = { true },
 ) : ViewModel() {
     /** Null until the first read lands, so the screen can tell "loading" from "empty". */
     val backlog: StateFlow<List<VideoWithChannel>?> =
@@ -84,12 +87,14 @@ class BacklogViewModel(
             try {
                 val outcome =
                     try {
-                        // A cold start can run before Android lifts the app's network block
-                        // (Battery Saver holds it for seconds after launch), so a round
-                        // where nothing answered is tried once more, quietly.
+                        // A cold start can run before Android lifts the app's network block -
+                        // Battery Saver held it for up to ten seconds after launch - so wait
+                        // for it, and try a round where nothing answered once more.
+                        awaitNetwork()
                         refresher.refresh().let {
                             if (nothingAnswered(it)) {
-                                delay(OFFLINE_RETRY_MS)
+                                delay(POLL_MS)
+                                awaitNetwork()
                                 refresher.refresh()
                             } else {
                                 it
@@ -113,6 +118,14 @@ class BacklogViewModel(
             } finally {
                 _refreshing.value = false
             }
+        }
+    }
+
+    /** Returns once there is a usable network, or after a while regardless. */
+    private suspend fun awaitNetwork() {
+        repeat(NETWORK_WAIT_POLLS) {
+            if (networkReady()) return
+            delay(POLL_MS)
         }
     }
 
@@ -148,7 +161,9 @@ class BacklogViewModel(
 
         private const val TAG = "BacklogViewModel"
 
-        private const val OFFLINE_RETRY_MS = 5_000L
+        private const val POLL_MS = 1_000L
+
+        private const val NETWORK_WAIT_POLLS = 12
 
         private const val STOP_MS = 5_000L
 
@@ -157,7 +172,16 @@ class BacklogViewModel(
         fun factory(container: AppContainer): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
-                    BacklogViewModel(container.library, container.refresher, container.appContext)
+                    val connectivity =
+                        container.appContext.getSystemService(ConnectivityManager::class.java)
+                    BacklogViewModel(
+                        container.library,
+                        container.refresher,
+                        container.appContext,
+                        // Null while there is no network - or while this app is blocked
+                        // from the one there is, which is the case being waited out.
+                        networkReady = { connectivity?.activeNetwork != null },
+                    )
                 }
             }
     }

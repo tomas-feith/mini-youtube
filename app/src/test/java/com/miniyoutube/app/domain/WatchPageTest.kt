@@ -58,6 +58,21 @@ class WatchPageTest {
     }
 
     @Test
+    fun aTabYouTubeSwappedForAnotherYieldsNothing() {
+        fun tabPage(selectedUrl: String) =
+            """{"tabRenderer":{"endpoint":{"commandMetadata":{"webCommandMetadata":""" +
+                """{"url":"/@x/videos"}}},"title":"Videos"}},""" +
+                """{"tabRenderer":{"endpoint":{"commandMetadata":{"webCommandMetadata":""" +
+                """{"url":"$selectedUrl"}}},"title":"Whatever","selected":true,""" +
+                """{"contentId":"rayrrXot17M"}"""
+
+        assertEquals(listOf("rayrrXot17M"), parseChannelTabIds(tabPage("/@x/streams"), "streams"))
+        // A channel that never streamed answers /streams with its Home tab.
+        assertEquals(emptyList<String>(), parseChannelTabIds(tabPage("/@x/featured"), "streams"))
+        assertEquals(emptyList<String>(), parseChannelTabIds("{}", "videos"))
+    }
+
+    @Test
     fun channelVideoIdsAreInOrderWithoutRepeatsAndSkipPlaylists() {
         val html =
             """{"contentId":"rayrrXot17M"},{"contentId":"rayrrXot17M"},""" +

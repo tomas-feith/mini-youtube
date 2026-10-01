@@ -55,6 +55,9 @@ private class YouTubeSource(
 
     override suspend fun channelVideoIds(channelId: String): List<String> =
         client.fetchChannelVideoIds(channelId)
+
+    override suspend fun channelStreamIds(channelId: String): List<String> =
+        client.fetchChannelStreamIds(channelId)
 }
 
 class MiniYouTubeApplication :

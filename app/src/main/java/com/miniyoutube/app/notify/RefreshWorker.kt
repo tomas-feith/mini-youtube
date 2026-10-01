@@ -1,6 +1,7 @@
 package com.miniyoutube.app.notify
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -32,7 +33,13 @@ class RefreshWorker(
                 ?: return Result.failure()
 
         return try {
-            val outcome = container.refresher.refresh()
+            // While the feed is down, checking from the channel tabs reads a megabyte or
+            // more per tab; on mobile data that waits for the app to be opened.
+            val metered =
+                applicationContext
+                    .getSystemService(ConnectivityManager::class.java)
+                    ?.isActiveNetworkMetered ?: true
+            val outcome = container.refresher.refresh(fallBack = !metered)
             notifyNewVideos(applicationContext, outcome.newVideos)
             // A channel that failed is retried on the next hourly run anyway; asking for a
             // retry now would re-read every other channel for its sake.

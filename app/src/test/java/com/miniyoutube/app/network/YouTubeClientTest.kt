@@ -24,6 +24,12 @@ class YouTubeClientTest {
         <meta property="og:image" content="https://yt3.example/a.jpg">
         """.trimIndent()
 
+    private fun tab(name: String) =
+        """{"tabRenderer":{"endpoint":{"commandMetadata":{"webCommandMetadata":""" +
+            """{"url":"/@x/$name"}}},"title":"T","selected":true,"""
+
+    private val videosTab = tab("videos")
+
     @Before
     fun start() = server.start()
 
@@ -171,7 +177,7 @@ class YouTubeClientTest {
         runTest {
             server.enqueue(
                 MockResponse().setBody(
-                    """{"contentId":"rayrrXot17M"},{"contentId":"DkUuOr21v4s"}""",
+                    videosTab + """{"contentId":"rayrrXot17M"},{"contentId":"DkUuOr21v4s"}""",
                 ),
             )
             assertEquals(listOf("rayrrXot17M", "DkUuOr21v4s"), client().fetchChannelVideoIds(id))
@@ -183,12 +189,22 @@ class YouTubeClientTest {
         runTest {
             server.enqueue(
                 MockResponse()
-                    .setBody("""{"contentId":"rayrrXot17M"}""")
+                    .setBody(videosTab + """{"contentId":"rayrrXot17M"}""")
                     .setHeader("Date", "Thu, 01 Oct 2026 04:54:06 GMT"),
             )
             val uploads = client().fetchUploads(id)
             assertEquals(listOf("rayrrXot17M"), uploads.videoIds)
             assertEquals(Instant.parse("2026-10-01T04:54:06Z"), uploads.fetchedAt)
+        }
+
+    @Test
+    fun aStreamsTabServedAsHomeIsEmpty() =
+        runTest {
+            server.enqueue(
+                MockResponse().setBody(tab("featured") + """{"contentId":"rayrrXot17M"}"""),
+            )
+            assertEquals(emptyList<String>(), client().fetchChannelStreamIds(id))
+            assertEquals("/channel/$id/streams", server.takeRequest().path)
         }
 
     @Test
