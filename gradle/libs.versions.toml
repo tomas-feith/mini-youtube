@@ -20,7 +20,6 @@ room = "2.8.5"
 coroutines = "1.11.0"
 okhttp = "4.12.0"
 coil = "3.6.3"
-# 2.12.0 is still rc, so the metadata <latest> tag is not a stable version.
 work = "2.12.0"
 youtubePlayer = "13.0.0"
 kotlinxSerialization = "1.11.0"

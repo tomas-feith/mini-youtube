@@ -121,7 +121,8 @@ ksp {
 android.sourceSets
     .getByName("androidTest")
     .assets
-    .srcDir("$projectDir/schemas")
+    .directories
+    .add("$projectDir/schemas")
 
 // AGP 9 dropped the `kotlinOptions` block in favour of the Kotlin plugin's own DSL.
 kotlin {
