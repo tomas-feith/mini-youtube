@@ -66,8 +66,14 @@ class Follower(
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: YouTubeException) {
+            // Written for the screen: "No channel at /@x", "That video is private...".
+            FollowResult.Failed(e.message ?: "YouTube refused that")
         } catch (e: IOException) {
-            FollowResult.Failed(e.message ?: "Couldn't reach YouTube")
+            // No answer at all. The system's wording ("Unable to resolve host ...") says
+            // what failed, not what to do about it.
+            Log.w(TAG, "Following failed", e)
+            FollowResult.Failed("Couldn't reach YouTube. Are you online?")
         } catch (e: IllegalArgumentException) {
             // OkHttp's verdict on a URL it cannot build, which a malformed path produces.
             FollowResult.Failed(e.message ?: "That link couldn't be used")

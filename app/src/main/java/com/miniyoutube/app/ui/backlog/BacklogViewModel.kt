@@ -96,7 +96,12 @@ class BacklogViewModel(
                 // A cold start can run before Android lifts the app's network block -
                 // Battery Saver held it for up to ten seconds after launch - so wait for
                 // it. Only then can the network be told apart as Wi-Fi or mobile data.
-                awaitNetwork()
+                // Still none after the wait means offline: say so now, rather than
+                // check, fail, wait again and retry.
+                if (!awaitNetwork()) {
+                    _messages.send(BacklogMessage(OFFLINE_MESSAGE))
+                    return@launch
+                }
                 if (automatic && onMeteredNetwork() && !checkOnMobileData()) return@launch
                 val outcome =
                     try {
@@ -131,12 +136,13 @@ class BacklogViewModel(
         }
     }
 
-    /** Returns once there is a usable network, or after a while regardless. */
-    private suspend fun awaitNetwork() {
+    /** Whether a usable network turned up, polling for one for a while. */
+    private suspend fun awaitNetwork(): Boolean {
         repeat(NETWORK_WAIT_POLLS) {
-            if (networkReady()) return
+            if (networkReady()) return true
             delay(POLL_MS)
         }
+        return networkReady()
     }
 
     fun markWatched(videoId: String) {
@@ -162,7 +168,7 @@ class BacklogViewModel(
             when {
                 outcome.failed == 0 -> null
                 outcome.checked > 0 -> "${outcome.failed} channel(s) couldn't be checked"
-                outcome.unreachable == outcome.failed -> "Couldn't reach YouTube. Are you online?"
+                outcome.unreachable == outcome.failed -> OFFLINE_MESSAGE
                 else -> "YouTube isn't answering properly right now. Try again later."
             }
 
@@ -170,6 +176,8 @@ class BacklogViewModel(
             outcome.failed > 0 && outcome.unreachable == outcome.failed && outcome.checked == 0
 
         private const val TAG = "BacklogViewModel"
+
+        private const val OFFLINE_MESSAGE = "Couldn't reach YouTube. Are you online?"
 
         private const val POLL_MS = 1_000L
 
