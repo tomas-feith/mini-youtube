@@ -33,6 +33,10 @@ New videos appear newest first, with the channel name and how long ago each was
 published. Tap one to play it; tap the tick to mark it watched, with an undo in case of
 a mis-tap. Pull down to check for new videos by hand.
 
+New videos are checked for every hour in the background and whenever you open the app -
+on Wi-Fi only, unless **Check on mobile data** is switched on in the Channels screen. Pull
+to refresh checks on any connection.
+
 A watched video is gone from the backlog for good, even though it stays in the channel's
 feed for a while - the app remembers what it has already shown you.
 
@@ -94,8 +98,8 @@ every channel (one began on 2026-10-01). While it does, each check reads the cha
 Videos and Live tabs instead and looks up the newest entries it does not know yet,
 stopping at the first one it has seen or one from before the follow. A video whose page
 cannot be read is skipped and tried again next time. That costs a megabyte or two per
-channel per check, plus about a megabyte per new video, so the hourly background check
-only does it on Wi-Fi; on mobile data it waits for you to open the app. Following works the
+channel per check, plus about a megabyte per new video - one reason checks keep to Wi-Fi
+unless you allow mobile data. Following works the
 same way. A channel that has never streamed answers its Live tab with its Home tab, which
 the app recognises and ignores. If YouTube answers with errors for every channel, the app
 says so rather than blaming your connection.

@@ -9,6 +9,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.miniyoutube.app.data.FeedRefresher
 import com.miniyoutube.app.data.Follower
 import com.miniyoutube.app.data.Library
+import com.miniyoutube.app.data.Settings
 import com.miniyoutube.app.data.VideoDatabase
 import com.miniyoutube.app.data.VideoSource
 import com.miniyoutube.app.domain.Feed
@@ -16,6 +17,12 @@ import com.miniyoutube.app.domain.WatchInfo
 import com.miniyoutube.app.network.YouTubeClient
 import com.miniyoutube.app.notify.RefreshWorker
 import com.miniyoutube.app.notify.ensureChannel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 
 /**
@@ -43,6 +50,36 @@ class AppContainer(
     }
 
     val follower: Follower by lazy { Follower(youtube, library) }
+
+    val settings: Settings by lazy { Settings(appContext) }
+
+    /** For work that must outlive any screen, such as saving a setting. */
+    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Serializes registering the hourly check, so the one at startup - which reads the
+     * setting first - cannot land after a change and put the old constraint back.
+     */
+    private val scheduling = Mutex()
+
+    /** Registers the hourly check under the stored mobile-data choice. */
+    fun scheduleRefresh() {
+        appScope.launch {
+            scheduling.withLock {
+                RefreshWorker.schedule(appContext, settings.currentCheckOnMobileData())
+            }
+        }
+    }
+
+    /** Saves the mobile-data choice and re-registers the hourly check under it. */
+    fun setCheckOnMobileData(allowed: Boolean) {
+        appScope.launch {
+            scheduling.withLock {
+                settings.setCheckOnMobileData(allowed)
+                RefreshWorker.schedule(appContext, allowed)
+            }
+        }
+    }
 }
 
 /** The refresher's view of the network client. */
@@ -73,7 +110,9 @@ class MiniYouTubeApplication :
         // Created up front so the channel shows in system settings from the first launch,
         // and can be tuned before anything is posted to it.
         ensureChannel(this)
-        RefreshWorker.schedule(this)
+        // The setting is read off the main thread; the work is registered a moment later,
+        // which nothing is waiting on.
+        container.scheduleRefresh()
     }
 
     /** Thumbnails share the app's OkHttp client: one connection pool rather than two. */

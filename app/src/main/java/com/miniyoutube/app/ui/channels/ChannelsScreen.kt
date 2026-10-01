@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -41,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +62,7 @@ fun ChannelsScreen(
 ) {
     val channels by viewModel.channels.collectAsStateWithLifecycle()
     val follow by viewModel.follow.collectAsStateWithLifecycle()
+    val checkOnMobileData by viewModel.checkOnMobileData.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf<ChannelEntity?>(null) }
 
     Scaffold(
@@ -78,6 +82,9 @@ fun ChannelsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).imePadding(),
         ) {
             item { FollowField(follow, viewModel::onInputChange, { viewModel.follow() }) }
+            checkOnMobileData?.let { allowed ->
+                item { MobileDataSwitch(allowed, viewModel::setCheckOnMobileData) }
+            }
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             val list = channels.orEmpty()
             if (channels != null && list.isEmpty()) {
@@ -155,6 +162,37 @@ private fun FollowField(
                     },
             )
         }
+    }
+}
+
+@Composable
+private fun MobileDataSwitch(
+    allowed: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    // The whole row toggles, as a settings row does; the switch itself only shows state.
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .toggleable(value = allowed, role = Role.Switch, onValueChange = onChange)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Check on mobile data")
+            Text(
+                if (allowed) {
+                    "Hourly and on opening the app, on any connection"
+                } else {
+                    "Only on Wi-Fi. Pull down on the backlog to check anyway."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Switch(checked = allowed, onCheckedChange = null)
     }
 }
 

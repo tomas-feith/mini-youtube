@@ -104,12 +104,7 @@ class FeedRefresher(
 ) {
     private val mutex = Mutex()
 
-    /**
-     * @param fallBack whether a channel whose feed is refused may be checked from its tabs
-     *   instead. That costs two listings of about a megabyte each, so the background
-     *   worker declines it on a metered network.
-     */
-    suspend fun refresh(fallBack: Boolean = true): RefreshOutcome =
+    suspend fun refresh(): RefreshOutcome =
         mutex.withLock {
             val released = releaseDue()
             val channels = store.channels()
@@ -118,7 +113,7 @@ class FeedRefresher(
                 coroutineScope {
                     channels
                         .map { channel ->
-                            async { permits.withPermit { refreshOne(channel, fallBack) } }
+                            async { permits.withPermit { refreshOne(channel) } }
                         }.awaitAll()
                 }
             val checked = results.filterIsInstance<ChannelResult.Checked>()
@@ -186,17 +181,13 @@ class FeedRefresher(
      * feed was in flight makes the insert fail its foreign key, and that must cost this
      * channel's round, not crash the screen that asked for a refresh.
      */
-    private suspend fun refreshOne(
-        channel: ChannelEntity,
-        fallBack: Boolean,
-    ): ChannelResult =
+    private suspend fun refreshOne(channel: ChannelEntity): ChannelResult =
         try {
             val feed =
                 try {
                     source.feed(channel.id)
                 } catch (e: YouTubeException) {
                     // YouTube answered, so the site is up and only the feed is not.
-                    if (!fallBack) throw e
                     Log.w(TAG, "Feed for ${channel.id} refused; reading its tabs", e)
                     null
                 }

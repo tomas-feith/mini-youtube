@@ -584,20 +584,6 @@ class FeedRefresherTest {
         }
 
     @Test
-    fun withoutPermissionToFallBackARefusedFeedReadsNoTabs() =
-        runTest {
-            val store = FakeStore(listOf(channel("A")))
-            val source =
-                FakeSource(refusedFeeds = setOf("A"), uploads = mutableMapOf("A" to listOf("v1")))
-
-            val outcome = refresher(source, store).refresh(fallBack = false)
-
-            assertEquals(1, outcome.failed)
-            assertEquals(0, outcome.unreachable)
-            assertEquals(0, source.uploadsRead + source.streamsRead)
-        }
-
-    @Test
     fun withoutTheFeedAnUpcomingPremiereIsHeldBack() =
         runTest {
             val startsAt = now.plus(Duration.ofHours(5))

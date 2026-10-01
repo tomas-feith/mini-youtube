@@ -11,7 +11,10 @@ absent-tolerant `keystore.properties` signing block.
 - **Network** - plain OkHttp to three YouTube endpoints, none needing a key: the channel
   Atom feed (scheduled), the channel page (once, on follow, for the `UC...` id behind a
   handle) and oEmbed (once, on follow from a video link).
-- **Background** - one WorkManager periodic job, hourly, network-constrained, KEEP.
+- **Background** - one WorkManager periodic job, hourly, UPDATE (keeps the period, carries
+  new constraints). Its network constraint is UNMETERED unless the "Check on mobile data"
+  setting (DataStore, `data/Settings`) allows CONNECTED; toggling it re-registers the job.
+  The automatic check on opening the app honours the same setting; pull to refresh does not.
 - **Playback** - `com.pierfrancescosoffritti.androidyoutubeplayer:core`, YouTube's IFrame
   embed in a WebView. It sets the HTTP referrer the embed has required since mid-2025.
 
@@ -37,8 +40,7 @@ absent-tolerant `keystore.properties` signing block.
 - **The feed endpoint goes down for every channel at once** (404s, e.g. 2026-10-01, while
   `/channel/<id>/videos` and oEmbed kept working). A `YouTubeException` from the feed -
   YouTube answered - makes `FeedRefresher` check from the `/videos` and `/streams` tabs
-  instead (the worker skips this on metered networks), and `Follower` take `followedAt`
-  from the videos tab's `Date` header. A plain `IOException` - no answer - does not fall
+  instead, and `Follower` take `followedAt` from the videos tab's `Date` header. A plain `IOException` - no answer - does not fall
   back, since the tabs would fail the same way.
 - **A missing channel tab is served as another one, with a 200.** `/streams` on a channel
   that never streamed returns Home (`featured`) or Videos. `parseChannelTabIds` checks the

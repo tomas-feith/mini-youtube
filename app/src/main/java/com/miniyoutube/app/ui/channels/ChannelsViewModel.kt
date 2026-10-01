@@ -10,6 +10,7 @@ import com.miniyoutube.app.data.ChannelEntity
 import com.miniyoutube.app.data.FollowResult
 import com.miniyoutube.app.data.Follower
 import com.miniyoutube.app.data.Library
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +30,15 @@ data class FollowState(
 class ChannelsViewModel(
     private val library: Library,
     private val follower: Follower,
+    checkOnMobileData: Flow<Boolean>,
+    private val saveCheckOnMobileData: (Boolean) -> Unit,
 ) : ViewModel() {
+    /** Null until read, so the switch does not flash off and on. */
+    val checkOnMobileData: StateFlow<Boolean?> =
+        checkOnMobileData.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_MS), null)
+
+    fun setCheckOnMobileData(allowed: Boolean) = saveCheckOnMobileData(allowed)
+
     val channels: StateFlow<List<ChannelEntity>?> =
         library.channels.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_MS), null)
 
@@ -74,7 +83,14 @@ class ChannelsViewModel(
 
         fun factory(container: AppContainer): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { ChannelsViewModel(container.library, container.follower) }
+                initializer {
+                    ChannelsViewModel(
+                        container.library,
+                        container.follower,
+                        container.settings.checkOnMobileData,
+                        container::setCheckOnMobileData,
+                    )
+                }
             }
     }
 }

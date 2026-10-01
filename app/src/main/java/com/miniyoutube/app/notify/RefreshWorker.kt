@@ -1,7 +1,6 @@
 package com.miniyoutube.app.notify
 
 import android.content.Context
-import android.net.ConnectivityManager
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -33,13 +32,7 @@ class RefreshWorker(
                 ?: return Result.failure()
 
         return try {
-            // While the feed is down, checking from the channel tabs reads a megabyte or
-            // more per tab; on mobile data that waits for the app to be opened.
-            val metered =
-                applicationContext
-                    .getSystemService(ConnectivityManager::class.java)
-                    ?.isActiveNetworkMetered ?: true
-            val outcome = container.refresher.refresh(fallBack = !metered)
+            val outcome = container.refresher.refresh()
             notifyNewVideos(applicationContext, outcome.newVideos)
             // A channel that failed is retried on the next hourly run anyway; asking for a
             // retry now would re-read every other channel for its sake.
@@ -70,23 +63,32 @@ class RefreshWorker(
         /**
          * Register the periodic check. Safe to call on every launch.
          *
-         * KEEP, not UPDATE: replacing the request on each start would reset its period, so
-         * an app opened often would never sit long enough for the work to come due.
+         * UPDATE, not REPLACE: replacing the request on each start would reset its period,
+         * so an app opened often would never sit long enough for the work to come due.
+         * UPDATE keeps the schedule and only carries over changed constraints - a flipped
+         * mobile-data setting, or an install that registered the work under older ones.
+         *
+         * @param onMobileData whether the check may run on a metered network. Off, it waits
+         *   for Wi-Fi: a check reads every channel - and while the feed is down, a megabyte
+         *   or more each.
          */
-        fun schedule(context: Context) {
+        fun schedule(
+            context: Context,
+            onMobileData: Boolean,
+        ) {
             val request =
                 PeriodicWorkRequestBuilder<RefreshWorker>(INTERVAL_HOURS, TimeUnit.HOURS)
                     .setConstraints(
                         Constraints
                             .Builder()
-                            // Without a connection every fetch fails and the slot is burned.
-                            .setRequiredNetworkType(NetworkType.CONNECTED)
-                            .build(),
+                            .setRequiredNetworkType(
+                                if (onMobileData) NetworkType.CONNECTED else NetworkType.UNMETERED,
+                            ).build(),
                     ).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }

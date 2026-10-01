@@ -158,6 +158,7 @@ dependencies {
 
     // The periodic feed check that posts the "new video" notification.
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.datastore.preferences)
 
     // Plain OkHttp rather than Retrofit: the app fetches an Atom feed, a channel page and
     // an oEmbed document, none of which is a REST API a declarative interface would fit.

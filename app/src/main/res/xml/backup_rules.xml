@@ -3,7 +3,7 @@
   Android 11 and below (fullBackupContent).
 
   The database holds the followed channels and which videos have been watched - the only
-  things here that could not be rebuilt. Naming an <include> makes the rules exclusive, so
+  things here that could not be rebuilt - and the settings file holds the user's choices. Naming an <include> makes the rules exclusive, so
   caches (thumbnails, the player's WebView data) are left out without listing them.
 
   The database runs with a TRUNCATE journal rather than WAL (see VideoDatabase), so the one
@@ -11,4 +11,5 @@
 -->
 <full-backup-content>
     <include domain="database" path="mini_youtube.db" />
+    <include domain="file" path="datastore/settings.preferences_pb" />
 </full-backup-content>

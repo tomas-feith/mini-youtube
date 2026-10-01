@@ -2,6 +2,7 @@ package com.miniyoutube.app.ui.backlog
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -42,6 +43,10 @@ class BacklogViewModel(
     private val clock: () -> Instant = Instant::now,
     /** Whether Android currently lets this app use a network. */
     private val networkReady: () -> Boolean = { true },
+    /** Whether that network is metered - mobile data, a hotspot. */
+    private val onMeteredNetwork: () -> Boolean = { false },
+    /** The user's choice to check unasked on a metered network anyway. */
+    private val checkOnMobileData: suspend () -> Boolean = { true },
 ) : ViewModel() {
     /** Null until the first read lands, so the screen can tell "loading" from "empty". */
     val backlog: StateFlow<List<VideoWithChannel>?> =
@@ -69,28 +74,33 @@ class BacklogViewModel(
     var askedForNotifications = false
 
     /**
-     * Checks the feeds when the app comes to the foreground, unless it did so recently.
+     * Checks the feeds when the app comes to the foreground, unless it did so recently, or
+     * is on mobile data and the user has not allowed checking there.
      *
      * The throttle is what makes checking on every return to the app affordable: switching
-     * away and back should not re-read every channel.
+     * away and back should not re-read every channel. A pull to refresh always checks.
      */
     fun refreshIfStale() {
         val last = lastRefreshAt
         if (last != null && Duration.between(last, clock()) < STALE_AFTER) return
-        refresh()
+        refresh(automatic = true)
     }
 
-    fun refresh() {
+    fun refresh() = refresh(automatic = false)
+
+    private fun refresh(automatic: Boolean) {
         if (_refreshing.value) return
         _refreshing.value = true
         viewModelScope.launch {
             try {
+                // A cold start can run before Android lifts the app's network block -
+                // Battery Saver held it for up to ten seconds after launch - so wait for
+                // it. Only then can the network be told apart as Wi-Fi or mobile data.
+                awaitNetwork()
+                if (automatic && onMeteredNetwork() && !checkOnMobileData()) return@launch
                 val outcome =
                     try {
-                        // A cold start can run before Android lifts the app's network block -
-                        // Battery Saver held it for up to ten seconds after launch - so wait
-                        // for it, and try a round where nothing answered once more.
-                        awaitNetwork()
+                        // A round where nothing answered is tried once more, quietly.
                         refresher.refresh().let {
                             if (nothingAnswered(it)) {
                                 delay(POLL_MS)
@@ -181,6 +191,15 @@ class BacklogViewModel(
                         // Null while there is no network - or while this app is blocked
                         // from the one there is, which is the case being waited out.
                         networkReady = { connectivity?.activeNetwork != null },
+                        onMeteredNetwork = {
+                            // No network reads as unmetered: the check then runs, fails and
+                            // says so, rather than silently not happening.
+                            connectivity
+                                ?.getNetworkCapabilities(connectivity.activeNetwork)
+                                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ==
+                                false
+                        },
+                        checkOnMobileData = { container.settings.currentCheckOnMobileData() },
                     )
                 }
             }
