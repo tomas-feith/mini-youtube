@@ -75,7 +75,18 @@ class YouTubeClient(
 
     /** The channel's latest long-form uploads, newest first, from its `/videos` tab. */
     suspend fun fetchChannelVideoIds(channelId: String): List<String> =
-        parseChannelVideoIds(get("$baseUrl/channel/$channelId/videos").body)
+        fetchUploads(channelId).videoIds
+
+    /** [fetchChannelVideoIds], with the time YouTube answered, for following without a feed. */
+    suspend fun fetchUploads(channelId: String): Uploads {
+        val response = get("$baseUrl/channel/$channelId/videos")
+        return Uploads(parseChannelVideoIds(response.body), response.serverTime)
+    }
+
+    class Uploads(
+        val videoIds: List<String>,
+        val fetchedAt: Instant?,
+    )
 
     /**
      * Turns what the user entered into a channel id, name and avatar.

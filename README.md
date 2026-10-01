@@ -89,6 +89,14 @@ The feed has two blind spots, and the app covers both:
   scheduled before you followed the channel counts as older than the follow and is not
   added.
 
+**When the feed itself is down.** YouTube's feed endpoint has spells of answering 404 for
+every channel (one began on 2026-10-01). While it does, each check reads the channel's
+Videos tab instead and looks up the newest uploads it does not know yet, stopping at the
+first one it has seen or one from before the follow. That costs about a megabyte per new
+video, and per quiet channel at most one page a check. Following works the same way. Streams
+are not on the Videos tab, so they wait for the feed to come back. If YouTube answers with
+errors for every channel, the app says so rather than blaming your connection.
+
 Resolving a `@handle` to a channel id reads the channel's page once, when you follow it.
 
 ## Your data

@@ -4,6 +4,7 @@ import com.miniyoutube.app.domain.FEED_WINDOW
 import com.miniyoutube.app.domain.Feed
 import com.miniyoutube.app.domain.FeedEntry
 import com.miniyoutube.app.domain.WatchInfo
+import com.miniyoutube.app.network.YouTubeException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -81,12 +82,14 @@ class FeedRefresherTest {
         val pages: MutableMap<String, WatchInfo> = mutableMapOf(),
         val uploads: MutableMap<String, List<String>> = mutableMapOf(),
         val failingFeeds: Set<String> = emptySet(),
+        val refusedFeeds: Set<String> = emptySet(),
     ) : VideoSource {
         val pagesRead = mutableListOf<String>()
         var uploadsRead = 0
 
         override suspend fun feed(channelId: String): Feed {
             if (channelId in failingFeeds) throw IOException("offline")
+            if (channelId in refusedFeeds) throw YouTubeException("YouTube answered 404", 404)
             return feeds.getValue(channelId)
         }
 
@@ -97,7 +100,7 @@ class FeedRefresherTest {
 
         override suspend fun channelVideoIds(channelId: String): List<String> {
             uploadsRead++
-            return uploads.getValue(channelId)
+            return uploads[channelId] ?: throw YouTubeException("YouTube answered 500", 500)
         }
     }
 
@@ -414,5 +417,119 @@ class FeedRefresherTest {
             val outcome = refresher(source, store).refresh()
 
             assertTrue(outcome.newVideos.none { it.videoId == "collab" })
+        }
+
+    @Test
+    fun aRefusedFeedIsCheckedFromTheVideosTabInstead() =
+        runTest {
+            val store = FakeStore(listOf(channel("A", highWater = followedAt)))
+            store.videos["seen"] =
+                VideoEntity("seen", "A", "Seen", followedAt.toEpochMilli(), 0, watchedAt = 1)
+            val source =
+                FakeSource(
+                    refusedFeeds = setOf("A"),
+                    uploads = mutableMapOf("A" to listOf("new2", "new1", "seen", "older")),
+                    pages =
+                        mutableMapOf(
+                            "new2" to page("new2", publishedAt = followedAt.plusSeconds(7200)),
+                            "new1" to page("new1", publishedAt = followedAt.plusSeconds(3600)),
+                        ),
+                )
+
+            val outcome = refresher(source, store).refresh()
+
+            assertEquals(listOf("new2", "new1"), outcome.newVideos.map { it.videoId })
+            assertEquals("Old name A", outcome.newVideos.first().channelTitle)
+            assertEquals(1, outcome.checked)
+            // The walk stopped at the first known video.
+            assertEquals(listOf("new2", "new1"), source.pagesRead)
+            assertEquals(now.toEpochMilli(), store.channelRows.getValue("A").lastCheckedAt)
+            // Nothing was learned about the feed, so its mark stays where it was.
+            assertEquals(followedAt.toEpochMilli(), store.channelRows.getValue("A").feedHighWater)
+        }
+
+    @Test
+    fun withoutTheFeedAQuietChannelCostsOnePageAtMost() =
+        runTest {
+            val store = FakeStore(listOf(channel("A")))
+            val source =
+                FakeSource(
+                    refusedFeeds = setOf("A"),
+                    uploads = mutableMapOf("A" to listOf("pre1", "pre2", "pre3")),
+                    pages =
+                        mutableMapOf(
+                            "pre1" to page("pre1", publishedAt = followedAt.minusSeconds(1)),
+                        ),
+                )
+
+            val outcome = refresher(source, store).refresh()
+
+            assertTrue(outcome.newVideos.isEmpty())
+            assertEquals(1, outcome.checked)
+            assertEquals(listOf("pre1"), source.pagesRead)
+        }
+
+    @Test
+    fun withoutTheFeedAnUnreadablePageEndsTheWalkAndIsTriedAgain() =
+        runTest {
+            val store = FakeStore(listOf(channel("A")))
+            val source =
+                FakeSource(
+                    refusedFeeds = setOf("A"),
+                    uploads = mutableMapOf("A" to listOf("v2", "v1")),
+                    pages = mutableMapOf("v1" to page("v1")),
+                )
+            val refresher = refresher(source, store)
+
+            assertTrue(refresher.refresh().newVideos.isEmpty())
+            assertEquals(listOf("v2"), source.pagesRead)
+            assertTrue(store.videos.isEmpty())
+
+            source.pages["v2"] = page("v2", publishedAt = followedAt.plusSeconds(7200))
+            assertEquals(listOf("v2", "v1"), refresher.refresh().newVideos.map { it.videoId })
+        }
+
+    @Test
+    fun withoutTheFeedAnUpcomingPremiereIsHeldBack() =
+        runTest {
+            val startsAt = now.plus(Duration.ofHours(5))
+            val store = FakeStore(listOf(channel("A")))
+            val source =
+                FakeSource(
+                    refusedFeeds = setOf("A"),
+                    uploads = mutableMapOf("A" to listOf("p1", "pre")),
+                    pages =
+                        mutableMapOf(
+                            // Dated by its scheduling, before the follow: must not end the walk.
+                            "p1" to
+                                page(
+                                    "p1",
+                                    publishedAt = followedAt.minusSeconds(60),
+                                    upcoming = true,
+                                    startsAt = startsAt,
+                                ),
+                            "pre" to page("pre", publishedAt = followedAt.minusSeconds(1)),
+                        ),
+                )
+
+            assertTrue(refresher(source, store).refresh().newVideos.isEmpty())
+            assertEquals(startsAt.toEpochMilli(), store.videos.getValue("p1").availableAt)
+            assertEquals(listOf("p1", "pre"), source.pagesRead)
+        }
+
+    @Test
+    fun noAnswerAndAWrongAnswerAreToldApart() =
+        runTest {
+            val store = FakeStore(listOf(channel("A"), channel("B")))
+            // A: no connection. B: the feed refused, and so did the videos tab.
+            val source = FakeSource(failingFeeds = setOf("A"), refusedFeeds = setOf("B"))
+
+            val outcome = refresher(source, store).refresh()
+
+            assertEquals(0, outcome.checked)
+            assertEquals(2, outcome.failed)
+            assertEquals(1, outcome.unreachable)
+            // No connection: the videos tab is not tried, it would fail the same way.
+            assertEquals(1, source.uploadsRead)
         }
 }

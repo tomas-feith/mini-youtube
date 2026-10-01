@@ -179,6 +179,19 @@ class YouTubeClientTest {
         }
 
     @Test
+    fun theVideosTabCarriesYouTubesClockForFollowingWithoutAFeed() =
+        runTest {
+            server.enqueue(
+                MockResponse()
+                    .setBody("""{"contentId":"rayrrXot17M"}""")
+                    .setHeader("Date", "Thu, 01 Oct 2026 04:54:06 GMT"),
+            )
+            val uploads = client().fetchUploads(id)
+            assertEquals(listOf("rayrrXot17M"), uploads.videoIds)
+            assertEquals(Instant.parse("2026-10-01T04:54:06Z"), uploads.fetchedAt)
+        }
+
+    @Test
     fun aChannelIdStillResolvesWhenThePageSaysNothing() =
         runTest {
             server.enqueue(MockResponse().setBody("<html></html>"))

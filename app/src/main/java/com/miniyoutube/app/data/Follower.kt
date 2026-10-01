@@ -1,7 +1,9 @@
 package com.miniyoutube.app.data
 
+import android.util.Log
 import com.miniyoutube.app.domain.parseChannelInput
 import com.miniyoutube.app.network.YouTubeClient
+import com.miniyoutube.app.network.YouTubeException
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 
@@ -35,8 +37,17 @@ class Follower(
             // Read the feed before committing. It confirms the channel can actually be
             // followed - the page and the feed are separate endpoints - and names it when
             // the page did not.
-            val feed = client.fetchFeed(info.id)
-            val title = info.title ?: feed.channelTitle ?: info.id
+            val feed =
+                try {
+                    client.fetchFeed(info.id)
+                } catch (e: YouTubeException) {
+                    // The feed endpoint has spells of refusing every channel. Checks fall
+                    // back to the videos tab then, so following can too; it still gives
+                    // YouTube's clock, and the high-water mark defaults to the follow.
+                    Log.w(TAG, "Feed for ${info.id} refused; following from its videos tab", e)
+                    null
+                }
+            val title = info.title ?: feed?.channelTitle ?: info.id
             val followed =
                 library.follow(
                     channelId = info.id,
@@ -45,8 +56,8 @@ class Follower(
                     // YouTube's clock, not the phone's: this is compared against publish
                     // times YouTube stamped, and a phone clock running ahead would
                     // otherwise silently drop every upload made in the difference.
-                    followedAt = feed.fetchedAt,
-                    highWater = feed.entries.maxOfOrNull { it.publishedAt },
+                    followedAt = feed?.fetchedAt ?: client.fetchUploads(info.id).fetchedAt,
+                    highWater = feed?.entries?.maxOfOrNull { it.publishedAt },
                 )
             if (followed) {
                 FollowResult.Followed(title)
@@ -61,5 +72,9 @@ class Follower(
             // OkHttp's verdict on a URL it cannot build, which a malformed path produces.
             FollowResult.Failed(e.message ?: "That link couldn't be used")
         }
+    }
+
+    private companion object {
+        const val TAG = "Follower"
     }
 }

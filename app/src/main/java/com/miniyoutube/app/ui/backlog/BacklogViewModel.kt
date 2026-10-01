@@ -10,10 +10,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.miniyoutube.app.AppContainer
 import com.miniyoutube.app.data.FeedRefresher
 import com.miniyoutube.app.data.Library
+import com.miniyoutube.app.data.RefreshOutcome
 import com.miniyoutube.app.data.VideoWithChannel
 import com.miniyoutube.app.notify.cancelVideoNotification
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -82,7 +84,17 @@ class BacklogViewModel(
             try {
                 val outcome =
                     try {
-                        refresher.refresh()
+                        // A cold start can run before Android lifts the app's network block
+                        // (Battery Saver holds it for seconds after launch), so a round
+                        // where nothing answered is tried once more, quietly.
+                        refresher.refresh().let {
+                            if (nothingAnswered(it)) {
+                                delay(OFFLINE_RETRY_MS)
+                                refresher.refresh()
+                            } else {
+                                it
+                            }
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (
@@ -94,14 +106,10 @@ class BacklogViewModel(
                         _messages.send(BacklogMessage("Couldn't check for new videos"))
                         return@launch
                     }
-                lastRefreshAt = clock()
-                if (outcome.checked == 0 && outcome.failed > 0) {
-                    _messages.send(BacklogMessage("Couldn't reach YouTube"))
-                } else if (outcome.failed > 0) {
-                    _messages.send(
-                        BacklogMessage("${outcome.failed} channel(s) couldn't be checked"),
-                    )
-                }
+                // Not throttled after reaching nothing: the next return to the app should
+                // try again, and it costs nothing while offline.
+                if (!nothingAnswered(outcome)) lastRefreshAt = clock()
+                failureMessage(outcome)?.let { _messages.send(BacklogMessage(it)) }
             } finally {
                 _refreshing.value = false
             }
@@ -121,7 +129,26 @@ class BacklogViewModel(
     }
 
     companion object {
+        /**
+         * What to say about a refresh that did not fully succeed, or null if it did.
+         *
+         * "Couldn't reach" is kept for when nothing answered at all; when YouTube answered
+         * with errors, blaming the connection would send the user to check the wrong thing.
+         */
+        fun failureMessage(outcome: RefreshOutcome): String? =
+            when {
+                outcome.failed == 0 -> null
+                outcome.checked > 0 -> "${outcome.failed} channel(s) couldn't be checked"
+                outcome.unreachable == outcome.failed -> "Couldn't reach YouTube. Are you online?"
+                else -> "YouTube isn't answering properly right now. Try again later."
+            }
+
+        private fun nothingAnswered(outcome: RefreshOutcome) =
+            outcome.failed > 0 && outcome.unreachable == outcome.failed && outcome.checked == 0
+
         private const val TAG = "BacklogViewModel"
+
+        private const val OFFLINE_RETRY_MS = 5_000L
 
         private const val STOP_MS = 5_000L
 
