@@ -18,7 +18,7 @@ room = "2.8.5"
 # Aligned with the version androidx already resolves on the classpath, rather than pushed
 # ahead of it. Dependabot raises both together.
 coroutines = "1.11.0"
-okhttp = "4.12.0"
+okhttp = "5.5.1"
 coil = "3.6.3"
 work = "2.12.0"
 youtubePlayer = "13.0.0"
