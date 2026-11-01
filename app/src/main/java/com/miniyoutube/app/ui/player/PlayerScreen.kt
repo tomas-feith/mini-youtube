@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +26,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -55,6 +61,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.miniyoutube.app.data.Rating
 import com.miniyoutube.app.domain.relativeAge
 import com.miniyoutube.app.domain.watchUrl
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
@@ -129,12 +136,19 @@ fun PlayerScreen(
                     }
                     if (video != null) {
                         Text(video.title, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "${video.channelTitle} · " +
-                                relativeAge(Instant.ofEpochMilli(video.publishedAt), Instant.now()),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${video.channelTitle} · " +
+                                    relativeAge(
+                                        Instant.ofEpochMilli(video.publishedAt),
+                                        Instant.now(),
+                                    ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            RatingButtons(video.rating) { viewModel.toggleRating(video.rating, it) }
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     // Flow rather than Row: both buttons side by side overflow a 360dp phone.
@@ -175,6 +189,34 @@ fun PlayerScreen(
         }
 
         fullscreen?.let { FullscreenHost(it.view) }
+    }
+}
+
+/** Thumbs up and down, filled when chosen. Only one is ever on. */
+@Composable
+private fun RatingButtons(
+    rating: Rating?,
+    onTap: (Rating) -> Unit,
+) {
+    Row {
+        IconToggleButton(
+            checked = rating == Rating.LIKE,
+            onCheckedChange = { onTap(Rating.LIKE) },
+        ) {
+            Icon(
+                if (rating == Rating.LIKE) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                contentDescription = "Like",
+            )
+        }
+        IconToggleButton(
+            checked = rating == Rating.DISLIKE,
+            onCheckedChange = { onTap(Rating.DISLIKE) },
+        ) {
+            Icon(
+                if (rating == Rating.DISLIKE) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
+                contentDescription = "Dislike",
+            )
+        }
     }
 }
 

@@ -70,6 +70,7 @@ class FeedRefresherTest {
                         it.publishedAt,
                         it.watchedAt,
                         it.resumeAtSeconds,
+                        it.rating,
                     )
                 }
 

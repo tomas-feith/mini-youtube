@@ -54,6 +54,12 @@ class Library(
     /** The undo for [markWatched]. The video returns to the backlog where it was. */
     suspend fun markUnwatched(videoId: String) = dao.setWatchedAt(videoId, null)
 
+    /** Null clears the rating. Watched or not, the video stays where it is. */
+    suspend fun rate(
+        videoId: String,
+        rating: Rating?,
+    ) = dao.setRating(videoId, rating)
+
     suspend fun saveResumePoint(
         videoId: String,
         seconds: Int,

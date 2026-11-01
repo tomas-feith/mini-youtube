@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.miniyoutube.app.AppContainer
 import com.miniyoutube.app.data.Library
+import com.miniyoutube.app.data.Rating
 import com.miniyoutube.app.data.VideoWithChannel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,14 @@ class PlayerViewModel(
 
     fun markUnwatched() {
         viewModelScope.launch { library.markUnwatched(videoId) }
+    }
+
+    /** Tapping the rating already given takes it back, as on YouTube. */
+    fun toggleRating(
+        current: Rating?,
+        tapped: Rating,
+    ) {
+        viewModelScope.launch { library.rate(videoId, if (current == tapped) null else tapped) }
     }
 
     companion object {

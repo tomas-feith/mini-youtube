@@ -74,7 +74,12 @@ data class VideoEntity(
      * it. Null for everything already watchable.
      */
     val availableAt: Long? = null,
+    /** The user's own verdict. Kept in this app only; YouTube never sees it. */
+    val rating: Rating? = null,
 )
+
+/** A like or a dislike. Stored by name, so a reordering here cannot flip old ratings. */
+enum class Rating { LIKE, DISLIKE }
 
 /** A video joined with the name of its channel, which is how every screen shows it. */
 data class VideoWithChannel(
@@ -85,4 +90,5 @@ data class VideoWithChannel(
     val publishedAt: Long,
     val watchedAt: Long?,
     val resumeAtSeconds: Int,
+    val rating: Rating?,
 )

@@ -16,7 +16,7 @@ abstract class VideoDatabase : RoomDatabase() {
     abstract fun videoDao(): VideoDao
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
 
         const val NAME = "mini_youtube.db"
 
@@ -36,6 +36,14 @@ abstract class VideoDatabase : RoomDatabase() {
                 }
             }
 
+        /** Adds `videos.rating`. Nullable, so every existing video arrives unrated. */
+        private val MIGRATION_2_3 =
+            object : Migration(2, 3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE videos ADD COLUMN rating TEXT")
+                }
+            }
+
         /**
          * Schema migrations, oldest first.
          *
@@ -47,7 +55,7 @@ abstract class VideoDatabase : RoomDatabase() {
          *  2. Add a `Migration(n, n + 1)` here with the SQL.
          *  3. `MigrationTest` fails until the committed schema JSONs and the SQL agree.
          */
-        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2)
+        val MIGRATIONS: List<Migration> = listOf(MIGRATION_1_2, MIGRATION_2_3)
 
         @Volatile
         private var instance: VideoDatabase? = null

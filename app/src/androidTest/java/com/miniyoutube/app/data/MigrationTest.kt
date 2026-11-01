@@ -70,6 +70,31 @@ class MigrationTest {
         }
     }
 
+    /** Adding ratings leaves watched state alone, and every existing video unrated. */
+    @Test
+    fun version3KeepsWatchedStateAndAddsUnratedVideos() {
+        helper.createDatabase(TEST_DB, 2).use { db ->
+            db.execSQL(
+                "INSERT INTO channels (id, title, avatarUrl, followedAt, lastCheckedAt, " +
+                    "feedHighWater) VALUES ('UCa', 'A', NULL, 1, 5, 7)",
+            )
+            db.execSQL(
+                "INSERT INTO videos (id, channelId, title, publishedAt, addedAt, watchedAt, " +
+                    "resumeAtSeconds, availableAt) " +
+                    "VALUES ('v1', 'UCa', 'Video', 1, 2, 3, 125, NULL)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 3, true, *MIGRATIONS).use { db ->
+            db.query("SELECT watchedAt, resumeAtSeconds, rating FROM videos").use { c ->
+                assertTrue("the video did not survive", c.moveToFirst())
+                assertEquals("watched state was disturbed", 3L, c.getLong(0))
+                assertEquals(125, c.getInt(1))
+                assertTrue("rating should arrive null", c.isNull(2))
+            }
+        }
+    }
+
     /** Room itself opens the upgraded file with every migration registered. */
     @Test
     fun roomOpensTheLatestSchemaFromTheOldest() {
