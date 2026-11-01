@@ -122,26 +122,6 @@ class VideoDaoTest {
         }
 
     @Test
-    fun ratingIsSetChangedAndClearedWithoutTouchingWatchedState() =
-        runTest {
-            library.follow("UCa", "A", null)
-            library.addVideos(listOf(video("v1")))
-            assertNull(library.video("v1").first()?.rating)
-
-            library.rate("v1", Rating.LIKE)
-            assertEquals(Rating.LIKE, library.video("v1").first()?.rating)
-            library.rate("v1", Rating.DISLIKE)
-            assertEquals(Rating.DISLIKE, library.video("v1").first()?.rating)
-
-            library.markWatched("v1")
-            assertEquals(Rating.DISLIKE, library.video("v1").first()?.rating)
-            library.rate("v1", null)
-            val video = library.video("v1").first()
-            assertNull(video?.rating)
-            assertEquals(now.toEpochMilli(), video?.watchedAt)
-        }
-
-    @Test
     fun followingRecordsYouTubesClockAndTheFeedsMark() =
         runTest {
             val server = Instant.parse("2026-09-30T10:00:00Z")

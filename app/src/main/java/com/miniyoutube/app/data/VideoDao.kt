@@ -41,7 +41,7 @@ interface VideoDao {
 
     @Query(
         "SELECT v.id, v.channelId, c.title AS channelTitle, v.title, v.publishedAt, " +
-            "v.watchedAt, v.resumeAtSeconds, v.rating " +
+            "v.watchedAt, v.resumeAtSeconds " +
             "FROM videos v JOIN channels c ON c.id = v.channelId " +
             "WHERE v.watchedAt IS NULL AND v.availableAt IS NULL ORDER BY v.publishedAt DESC",
     )
@@ -49,7 +49,7 @@ interface VideoDao {
 
     @Query(
         "SELECT v.id, v.channelId, c.title AS channelTitle, v.title, v.publishedAt, " +
-            "v.watchedAt, v.resumeAtSeconds, v.rating " +
+            "v.watchedAt, v.resumeAtSeconds " +
             "FROM videos v JOIN channels c ON c.id = v.channelId WHERE v.id = :id",
     )
     fun observeVideo(id: String): Flow<VideoWithChannel?>
@@ -57,7 +57,7 @@ interface VideoDao {
     /** Premieres and streams whose start has come, waiting to be released. */
     @Query(
         "SELECT v.id, v.channelId, c.title AS channelTitle, v.title, v.publishedAt, " +
-            "v.watchedAt, v.resumeAtSeconds, v.rating " +
+            "v.watchedAt, v.resumeAtSeconds " +
             "FROM videos v JOIN channels c ON c.id = v.channelId " +
             "WHERE v.availableAt IS NOT NULL AND v.availableAt <= :now",
     )
@@ -91,12 +91,6 @@ interface VideoDao {
     suspend fun setWatchedAt(
         id: String,
         watchedAt: Long?,
-    )
-
-    @Query("UPDATE videos SET rating = :rating WHERE id = :id")
-    suspend fun setRating(
-        id: String,
-        rating: Rating?,
     )
 
     @Query("UPDATE videos SET resumeAtSeconds = :seconds WHERE id = :id")
